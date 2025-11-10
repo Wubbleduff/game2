@@ -80,11 +80,19 @@ void WinMainCRTStartup()
         struct GameState* game_state = &g_main_memory->game_states[g_main_memory->cur_game_state_idx];
         struct GameState* prev_game_state = &g_main_memory->game_states[(g_main_memory->cur_game_state_idx + 1) & 1];
 
-        update_game_state(game_state, prev_game_state);
+        struct GameInput game_input;
+        platform_win32_read_game_input(
+            &game_input,
+            prev_game_state->cam_pos_x,
+            prev_game_state->cam_pos_y,
+            prev_game_state->cam_w,
+            prev_game_state->cam_aspect_ratio);
+
+        update_game_state(game_state, prev_game_state, &game_input);
 
         platform_win32_render(game_state);
 
-        platform_win32_swap_and_clear_buffer(10, 150, 230);
+        platform_win32_swap_and_clear_buffer(20, 0, 50);
 
         g_main_memory->cur_game_state_idx = (g_main_memory->cur_game_state_idx + 1) & 1;
 

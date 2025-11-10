@@ -14,6 +14,7 @@ enum ShaderType
 {
     SHADER_BASIC,
     SHADER_BASIC_COLOR,
+    SHADER_CIRCLE_BASIC_COLOR,
     
     NUM_SHADER_TYPE
 };
@@ -41,6 +42,37 @@ enum RasterizerStateType
     NUM_RASTERIZER_STATE_TYPE
 };
 
+#define MAX_INSTANCES 32768
+
+#define MAX_QUADS 1024
+struct RenderWorldQuadData
+{
+    u32 num;
+    f32 pos_x[MAX_QUADS];
+    f32 pos_y[MAX_QUADS];
+    f32 pos_z[MAX_QUADS];
+    f32 width[MAX_QUADS];
+    f32 height[MAX_QUADS];
+    f32 color_r[MAX_QUADS];
+    f32 color_g[MAX_QUADS];
+    f32 color_b[MAX_QUADS];
+    f32 color_a[MAX_QUADS];
+};
+
+#define MAX_CIRCLES 1024
+struct RenderWorldCircleData
+{
+    u32 num;
+    f32 pos_x[MAX_CIRCLES];
+    f32 pos_y[MAX_CIRCLES];
+    f32 pos_z[MAX_CIRCLES];
+    f32 radius[MAX_CIRCLES];
+    f32 color_r[MAX_CIRCLES];
+    f32 color_g[MAX_CIRCLES];
+    f32 color_b[MAX_CIRCLES];
+    f32 color_a[MAX_CIRCLES];
+};
+
 struct PlatformWin32Render
 {
     ID3D11Device* device;
@@ -59,6 +91,9 @@ struct PlatformWin32Render
     ID3D11Buffer* constant_buffer;
 
     struct StaticMeshData static_meshes[NUM_STATIC_MESH_TYPE];
+
+    struct RenderWorldQuadData world_quads;
+    struct RenderWorldCircleData world_circles;
 };
 
 struct PlatformWin32Render* platform_win32_get_render();

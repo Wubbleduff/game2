@@ -1,6 +1,9 @@
 
 #include "math.h"
 #include "game_state.h"
+#include "platform.h"
+
+#include "level0.h"
 
 #include "platform_win32/platform_win32_render.h"
 #include "platform_win32/platform_win32_core.h"
@@ -234,21 +237,20 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         );
     }
 
-    const u32 MAX_INSTANCES = 8;
     const u32 static_instance_data_buffer_size = sizeof(struct InstanceData) * MAX_INSTANCES;
 
     const struct Vertex quad_verts[] = {
         {
-            .pos = {0.0f, 0.0f,}
+            .pos = {-0.5f, -0.5f,}
         },
         {
-            .pos = {1.0f, 0.0f,}
+            .pos = {0.5f, -0.5f,}
         },
         {
-            .pos = {0.0f, 1.0f,}
+            .pos = {-0.5f, 0.5f,}
         },
         {
-            .pos = {1.0f, 1.0f,}
+            .pos = {0.5f, 0.5f,}
         },
     };
     const u32 quad_indices[] = {
@@ -335,21 +337,25 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         const void* vertex_shader_byte_code[] = {
             d3d11_vshader_basic,
             d3d11_vshader_basic_color,
+            d3d11_vshader_circle_basic_color,
         };
         _Static_assert(ARRAY_COUNT(vertex_shader_byte_code) == NUM_SHADER_TYPE, "Inconsistent size.");
         const u64 vertex_shader_byte_code_size[] = {
             sizeof(d3d11_vshader_basic),
             sizeof(d3d11_vshader_basic_color),
+            sizeof(d3d11_vshader_circle_basic_color),
         };
         _Static_assert(ARRAY_COUNT(vertex_shader_byte_code_size) == NUM_SHADER_TYPE, "Inconsistent size.");
         const void* pixel_shader_byte_code[] = {
             d3d11_pshader_basic,
             d3d11_pshader_basic_color,
+            d3d11_pshader_circle_basic_color,
         };
         _Static_assert(ARRAY_COUNT(pixel_shader_byte_code) == NUM_SHADER_TYPE, "Inconsistent size.");
         const u64 pixel_shader_byte_code_size[] = {
             sizeof(d3d11_pshader_basic),
             sizeof(d3d11_pshader_basic_color),
+            sizeof(d3d11_pshader_circle_basic_color),
         };
         _Static_assert(ARRAY_COUNT(pixel_shader_byte_code_size) == NUM_SHADER_TYPE, "Inconsistent size.");
 
@@ -369,6 +375,63 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             ASSERT(SUCCEEDED(hr), "d3d11 error.");
         }
     }
+
+    win32_render->world_quads.num = 0;
+    win32_render->world_circles.num = 0;
+}
+
+static void add_world_quad(
+    f32 pos_x,
+    f32 pos_y,
+    f32 pos_z,
+    f32 width,
+    f32 height,
+    f32 color_r,
+    f32 color_g,
+    f32 color_b,
+    f32 color_a)
+{
+    struct PlatformWin32Render* win32_render = platform_win32_get_render();
+
+    struct RenderWorldQuadData* data = &win32_render->world_quads;
+    const u32 num = data->num;
+    ASSERT(num < ARRAY_COUNT(data->pos_x), "'add_world_quad' overflow %u", ARRAY_COUNT(data->pos_x));
+    data->pos_x[num] = pos_x;
+    data->pos_y[num] = pos_y;
+    data->pos_z[num] = pos_z;
+    data->width[num] = width;
+    data->height[num] = height;
+    data->color_r[num] = color_r;
+    data->color_g[num] = color_g;
+    data->color_b[num] = color_b;
+    data->color_a[num] = color_a;
+    data->num++;
+}
+
+static void add_world_circle(
+    f32 pos_x,
+    f32 pos_y,
+    f32 pos_z,
+    f32 radius,
+    f32 color_r,
+    f32 color_g,
+    f32 color_b,
+    f32 color_a)
+{
+    struct PlatformWin32Render* win32_render = platform_win32_get_render();
+
+    struct RenderWorldCircleData* data = &win32_render->world_circles;
+    const u32 num = data->num;
+    ASSERT(num < ARRAY_COUNT(data->pos_x), "'add_world_circle' overflow %u", ARRAY_COUNT(data->pos_x));
+    data->pos_x[num] = pos_x;
+    data->pos_y[num] = pos_y;
+    data->pos_z[num] = pos_z;
+    data->radius[num] = radius;
+    data->color_r[num] = color_r;
+    data->color_g[num] = color_g;
+    data->color_b[num] = color_b;
+    data->color_a[num] = color_a;
+    data->num++;
 }
 
 void platform_win32_render(struct GameState* game_state)
@@ -398,7 +461,7 @@ void platform_win32_render(struct GameState* game_state)
         const f32 cam_pos_x = game_state->cam_pos_x;
         const f32 cam_pos_y = game_state->cam_pos_y;
 
-        const f32 aspect_ratio = (f32)win32_core->client_height / (f32)win32_core->client_width;
+        const f32 aspect_ratio = get_screen_aspect_ratio();
         const f32 cam_w = game_state->cam_w;
         const f32 cam_h = cam_w * aspect_ratio;
         m4x4 cam_translation_m4x4 = {
@@ -453,23 +516,54 @@ void platform_win32_render(struct GameState* game_state)
         }
     }
 
+    _Static_assert(MAX_QUADS <= MAX_INSTANCES, "MAX_QUADS overflow.");
+    add_world_circle(
+        game_state->player_pos_x,
+        game_state->player_pos_y,
+        game_state->player_pos_z,
+        game_state->player_radius,
+        0.0f,
+        0.8f,
+        1.0f,
+        1.0f
+    );
+
+    {
+        ASSERT(game_state->cur_level == 0, "TODO levels");
+        const f32* wall_pos_x = level0_wall_pos_x;
+        const f32* wall_pos_y = level0_wall_pos_y;
+        const f32* wall_width = level0_wall_width;
+        const f32* wall_height = level0_wall_height;
+        const u32 num_walls = ARRAY_COUNT(level0_wall_pos_x);
+
+        for(u64 i = 0; i < num_walls; i++)
+        {
+            add_world_quad(
+                wall_pos_x[i],
+                wall_pos_y[i],
+                0.5f,
+                wall_width[i],
+                wall_height[i],
+                1.0f,
+                0.5f,
+                0.2f,
+                1.0f
+            );
+        }
+    }
+
     {
         const enum StaticMeshType mesh_type = STATIC_MESH_QUAD;
         ID3D11Buffer* vertex_buffer = win32_render->static_meshes[mesh_type].vertex_buffer;
         ID3D11Buffer* instance_buffer = win32_render->static_meshes[mesh_type].instance_buffer;
         ID3D11Buffer* index_buffer = win32_render->static_meshes[mesh_type].index_buffer;
         u32 num_indices = win32_render->static_meshes[mesh_type].num_indices;
-        const enum ShaderType shader_type = SHADER_BASIC;
+        const enum ShaderType shader_type = SHADER_BASIC_COLOR;
 
         u32 num_instances = 0;
      
         ID3D11DeviceContext_RSSetState(device_context, win32_render->rasterizer_states[RASTERIZER_STATE_SOLID]);
         {
-            const u32 num_quads = game_state->num_quads;
-            const f32* quad_pos_x = game_state->quad_pos_x;
-            const f32* quad_pos_y = game_state->quad_pos_y;
-            const f32* quad_pos_z = game_state->quad_pos_z;
-
             D3D11_MAPPED_SUBRESOURCE mapped;
             ID3D11Resource* mapped_resource = (ID3D11Resource*)instance_buffer;
             HRESULT hr = ID3D11DeviceContext_Map(
@@ -482,17 +576,26 @@ void platform_win32_render(struct GameState* game_state)
             );
             ASSERT(SUCCEEDED(hr), "d3d11 error.");
             volatile struct InstanceData* mapped_data = (volatile struct InstanceData*)mapped.pData;
-            num_instances = num_quads;
-            for(u64 i = 0; i < num_quads; i++)
+            num_instances = win32_render->world_quads.num;
+            for(u64 i = 0; i < num_instances; i++)
             {
-                f32 scale = 1.0f;
-                mapped_data[i].xform[0][0] = scale; mapped_data[i].xform[0][1] = 0.0f; mapped_data[i].xform[0][2] = 0.0f; mapped_data[i].xform[0][3] = quad_pos_x[i];
-                mapped_data[i].xform[1][0] = 0.0f; mapped_data[i].xform[1][1] = scale; mapped_data[i].xform[1][2] = 0.0f; mapped_data[i].xform[1][3] = quad_pos_y[i];
-                mapped_data[i].xform[2][0] = 0.0f; mapped_data[i].xform[2][1] = 0.0f; mapped_data[i].xform[2][2] = scale; mapped_data[i].xform[2][3] = quad_pos_z[i];
-                mapped_data[i].color[0] = 0.0f;
-                mapped_data[i].color[1] = 0.0f;
-                mapped_data[i].color[2] = 0.0f;
-                mapped_data[i].color[3] = 0.0f;
+                const f32 pos_x = win32_render->world_quads.pos_x[i];
+                const f32 pos_y = win32_render->world_quads.pos_y[i];
+                const f32 pos_z = win32_render->world_quads.pos_z[i];
+                const f32 width = win32_render->world_quads.width[i];
+                const f32 height = win32_render->world_quads.height[i];
+                const f32 color_r = win32_render->world_quads.color_r[i];
+                const f32 color_g = win32_render->world_quads.color_g[i];
+                const f32 color_b = win32_render->world_quads.color_b[i];
+                const f32 color_a = win32_render->world_quads.color_a[i];
+
+                mapped_data[i].xform[0][0] = width; mapped_data[i].xform[0][1] = 0.0f; mapped_data[i].xform[0][2] = 0.0f; mapped_data[i].xform[0][3] = pos_x;
+                mapped_data[i].xform[1][0] = 0.0f; mapped_data[i].xform[1][1] = height; mapped_data[i].xform[1][2] = 0.0f; mapped_data[i].xform[1][3] = pos_y;
+                mapped_data[i].xform[2][0] = 0.0f; mapped_data[i].xform[2][1] = 0.0f; mapped_data[i].xform[2][2] = 1.0f; mapped_data[i].xform[2][3] = pos_z;
+                mapped_data[i].color[0] = color_r;
+                mapped_data[i].color[1] = color_g;
+                mapped_data[i].color[2] = color_b;
+                mapped_data[i].color[3] = color_a;
             }
      
             ID3D11DeviceContext_Unmap(device_context, mapped_resource, 0);
@@ -531,6 +634,93 @@ void platform_win32_render(struct GameState* game_state)
             0,
             0,
             0);
+
+        win32_render->world_quads.num = 0;
+    }
+
+    {
+        const enum StaticMeshType mesh_type = STATIC_MESH_QUAD;
+        ID3D11Buffer* vertex_buffer = win32_render->static_meshes[mesh_type].vertex_buffer;
+        ID3D11Buffer* instance_buffer = win32_render->static_meshes[mesh_type].instance_buffer;
+        ID3D11Buffer* index_buffer = win32_render->static_meshes[mesh_type].index_buffer;
+        u32 num_indices = win32_render->static_meshes[mesh_type].num_indices;
+        const enum ShaderType shader_type = SHADER_CIRCLE_BASIC_COLOR;
+
+        u32 num_instances = 0;
+     
+        ID3D11DeviceContext_RSSetState(device_context, win32_render->rasterizer_states[RASTERIZER_STATE_SOLID]);
+        {
+            D3D11_MAPPED_SUBRESOURCE mapped;
+            ID3D11Resource* mapped_resource = (ID3D11Resource*)instance_buffer;
+            HRESULT hr = ID3D11DeviceContext_Map(
+                device_context,
+                mapped_resource,
+                0,
+                D3D11_MAP_WRITE_DISCARD,
+                0,
+                &mapped
+            );
+            ASSERT(SUCCEEDED(hr), "d3d11 error.");
+            volatile struct InstanceData* mapped_data = (volatile struct InstanceData*)mapped.pData;
+            num_instances = win32_render->world_circles.num;
+            for(u64 i = 0; i < num_instances; i++)
+            {
+                const f32 pos_x = win32_render->world_circles.pos_x[i];
+                const f32 pos_y = win32_render->world_circles.pos_y[i];
+                const f32 pos_z = win32_render->world_circles.pos_z[i];
+                const f32 radius = win32_render->world_circles.radius[i];
+                const f32 color_r = win32_render->world_circles.color_r[i];
+                const f32 color_g = win32_render->world_circles.color_g[i];
+                const f32 color_b = win32_render->world_circles.color_b[i];
+                const f32 color_a = win32_render->world_circles.color_a[i];
+
+                mapped_data[i].xform[0][0] = radius * 2.0f; mapped_data[i].xform[0][1] = 0.0f; mapped_data[i].xform[0][2] = 0.0f; mapped_data[i].xform[0][3] = pos_x;
+                mapped_data[i].xform[1][0] = 0.0f; mapped_data[i].xform[1][1] = radius * 2.0f; mapped_data[i].xform[1][2] = 0.0f; mapped_data[i].xform[1][3] = pos_y;
+                mapped_data[i].xform[2][0] = 0.0f; mapped_data[i].xform[2][1] = 0.0f; mapped_data[i].xform[2][2] = 1.0f; mapped_data[i].xform[2][3] = pos_z;
+                mapped_data[i].color[0] = color_r;
+                mapped_data[i].color[1] = color_g;
+                mapped_data[i].color[2] = color_b;
+                mapped_data[i].color[3] = color_a;
+            }
+     
+            ID3D11DeviceContext_Unmap(device_context, mapped_resource, 0);
+        }
+     
+        ID3D11DeviceContext_VSSetShader(device_context, win32_render->vertex_shaders[shader_type], NULL, 0);
+        ID3D11DeviceContext_PSSetShader(device_context, win32_render->pixel_shaders[shader_type], NULL, 0);
+     
+        ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        ID3D11DeviceContext_IASetInputLayout(device_context, win32_render->layout);
+        ID3D11DeviceContext_IASetIndexBuffer(device_context, index_buffer, DXGI_FORMAT_R32_UINT, 0);
+        ID3D11Buffer* vertex_buffers[] = {
+            vertex_buffer,
+            instance_buffer,
+        };
+        const u32 strides[] = {
+            sizeof(struct Vertex),
+            sizeof(struct InstanceData),
+        };
+        const u32 offsets[] = {
+            0,
+            0,
+        };
+        ID3D11DeviceContext_IASetVertexBuffers(
+            device_context,
+            0,
+            ARRAY_COUNT(vertex_buffers),
+            vertex_buffers,
+            strides,
+            offsets
+        );
+        ID3D11DeviceContext_DrawIndexedInstanced(
+            device_context,
+            num_indices,
+            num_instances,
+            0,
+            0,
+            0);
+
+        win32_render->world_circles.num = 0;
     }
 }
 

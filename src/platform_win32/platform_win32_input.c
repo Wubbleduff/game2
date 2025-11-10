@@ -1,4 +1,7 @@
 
+#include "math.h"
+#include "game_input.h"
+
 #include "platform_win32/platform_win32_input.h"
 #include "platform_win32/platform_win32_core.h"
 
@@ -31,20 +34,10 @@ void platform_win32_init_input(struct PlatformWin32Input* mem)
 
 void platform_win32_input_end_frame()
 {
-    struct PlatformWin32Core* win32_core = platform_win32_get_core();
     struct PlatformWin32Input* win32_input = platform_win32_get_input();
 
     COPY_ARRAY(win32_input->prev_keyboard_buf, win32_input->keyboard_buf);
     COPY_ARRAY(win32_input->prev_mouse_button, win32_input->mouse_button);
-    win32_input->prev_mouse_screen_x = win32_input->mouse_screen_x;
-    win32_input->prev_mouse_screen_y = win32_input->mouse_screen_y;
-
-    POINT p;
-    GetCursorPos(&p);
-    ScreenToClient(win32_core->hwnd, &p);
-
-    win32_input->mouse_screen_x = p.x;
-    win32_input->mouse_screen_y = p.y;
 }
 
 static u8 is_valid_vk(const u8 k)
@@ -135,75 +128,37 @@ void platform_win32_get_mouse_screen_delta(s32* x, s32* y)
 ////////////////////////////////////////////////////////////////////////////////
 // Game specific impl
 
-
-static const u8 keyboard_key_to_vk_code[NUM_KEYBOARD_KEY] = {
-    [KB_LCTRL] = VK_CONTROL,
-    [KB_ESCAPE] = VK_ESCAPE,
-    [KB_SPACE] = VK_SPACE,
-
-    [KB_0] = '0',
-    [KB_1] = '1',
-    [KB_2] = '2',
-    [KB_3] = '3',
-    [KB_4] = '4',
-    [KB_5] = '5',
-    [KB_6] = '6',
-    [KB_7] = '7',
-    [KB_8] = '8',
-    [KB_9] = '9',
-
-    [KB_A] = 'A',
-    [KB_B] = 'B',
-    [KB_C] = 'C',
-    [KB_D] = 'D',
-    [KB_E] = 'E',
-    [KB_F] = 'F',
-    [KB_G] = 'G',
-    [KB_H] = 'H',
-    [KB_I] = 'I',
-    [KB_J] = 'J',
-    [KB_K] = 'K',
-    [KB_L] = 'L',
-    [KB_M] = 'M',
-    [KB_N] = 'N',
-    [KB_O] = 'O',
-    [KB_P] = 'P',
-    [KB_Q] = 'Q',
-    [KB_R] = 'R',
-    [KB_S] = 'S',
-    [KB_T] = 'T',
-    [KB_U] = 'U',
-    [KB_V] = 'V',
-    [KB_W] = 'W',
-    [KB_X] = 'X',
-    [KB_Y] = 'Y',
-    [KB_Z] = 'Z',
-};
-
-u32 is_keyboard_key_down(enum KeyboardKey k)
+void platform_win32_read_game_input(
+    struct GameInput* game_input,
+    const f32 cam_pos_x,
+    const f32 cam_pos_y,
+    const f32 cam_width,
+    const f32 cam_aspect_ratio)
 {
-    ASSERT((u32)k < ARRAY_COUNT(keyboard_key_to_vk_code), "Invalid key %u", k);
-    return platform_win32_is_keyboard_key_down(keyboard_key_to_vk_code[(u32)k]);
-}
+    const struct PlatformWin32Core* win32_core = platform_win32_get_core();
+    const s32 screen_width = win32_core->client_width;
+    const s32 screen_height = win32_core->client_height;
 
-u32 is_keyboard_key_toggled_down(enum KeyboardKey k)
-{
-    ASSERT((u32)k < ARRAY_COUNT(keyboard_key_to_vk_code), "Invalid key %u", k);
-    return platform_win32_is_keyboard_key_toggled_down(keyboard_key_to_vk_code[(u32)k]);
-}
+    s32 mouse_screen_x;
+    s32 mouse_screen_y;
+    platform_win32_get_mouse_screen_position(&mouse_screen_x, &mouse_screen_y);
 
-static const u8 mouse_button_to_win32_mouse_button[] = {
-    [GAME_MB_LEFT] = WIN32_MB_LEFT,
-    [GAME_MB_RIGHT] = WIN32_MB_RIGHT,
-};
-
-u32 is_mouse_button_down(enum GameMouseButton m)
-{
-    ASSERT((u32)m < ARRAY_COUNT(mouse_button_to_win32_mouse_button), "Invalid mouse button %u", m);
-    return platform_win32_is_mouse_button_down(mouse_button_to_win32_mouse_button[m]);
-}
-
-void get_mouse_screen_delta(s32* dx, s32* dy)
-{
-    platform_win32_get_mouse_screen_delta(dx, dy);
+    // Cursor world position.
+    {
+        const f32 cam_height = cam_width * cam_aspect_ratio;
+        game_input->cursor_pos_x = (f32)cam_pos_x + ((f32)mouse_screen_x / (f32)screen_width - 0.5f) * cam_width;
+        game_input->cursor_pos_y = (f32)cam_pos_y - ((f32)mouse_screen_y / (f32)screen_height - 0.5f) * cam_height;
+    }
+    
+    // Player move.
+    {
+        v2 v = zero_v2();
+        v.x += (f32)platform_win32_is_keyboard_key_down('D');
+        v.x -= (f32)platform_win32_is_keyboard_key_down('A');
+        v.y += (f32)platform_win32_is_keyboard_key_down('W');
+        v.y -= (f32)platform_win32_is_keyboard_key_down('S');
+        v = normalize_or_v2(v, zero_v2());
+        game_input->player_move_x = v.x;
+        game_input->player_move_y = v.y;
+    }
 }

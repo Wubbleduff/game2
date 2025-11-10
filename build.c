@@ -171,10 +171,12 @@ void assert_fn(const int c, const char* msg, ...)
 {
     if(!c)
     {
+        FILE* f = fopen("build_log.txt", "wb");
         va_list args;
         va_start(args, msg);
-        vfprintf(stderr, msg, args);
+        vfprintf(f, msg, args);
         va_end(args);
+        fclose(f);
         ExitProcess(1);
     }
 }
@@ -187,7 +189,8 @@ void run_cmd(const char* cmd)
     STARTUPINFOA startup_info = { .cb = sizeof(STARTUPINFOA) };
     PROCESS_INFORMATION proc_info = {};
     const BOOL ret = CreateProcessA(NULL, (char*)cmd, NULL, NULL, FALSE, 0, NULL, NULL, &startup_info, &proc_info);
-    ASSERT(ret, "run_cmd proc failure");
+    const s32 err = GetLastError();
+    ASSERT(ret, "run_cmd proc failure '%s' with error %i", cmd, err);
     WaitForSingleObject(proc_info.hProcess, INFINITE);
     CloseHandle(proc_info.hProcess);
     CloseHandle(proc_info.hThread);
@@ -340,7 +343,7 @@ void make_dirs(String256 path)
             if(!create_directory_success)
             {
                 const u32 error = GetLastError();
-                ASSERT(error == ERROR_ALREADY_EXISTS, "'CreateDirectory' failed with error %u", error);
+                ASSERT(error == ERROR_ALREADY_EXISTS, "'CreateDirectory' failed %u", error);
             }
             path.s[i] = c;
         }
@@ -443,7 +446,7 @@ int main()
         HANDLE compile_threads[MAX_SRC];
         HANDLE compile_stdouts_read[MAX_SRC];
         HANDLE compile_stdouts_write[MAX_SRC];
-        
+
         for(u64 i = 0; i < num_c_files; i++)
         {
             const String256 c_file = c_files[i];
@@ -497,7 +500,7 @@ int main()
                     .nLength = sizeof(SECURITY_ATTRIBUTES),
                     .bInheritHandle = TRUE,
                 };
-
+                
                 BOOL success = CreatePipe(
                     &compile_stdouts_read[num_compiles],
                     &compile_stdouts_write[num_compiles],
@@ -509,7 +512,7 @@ int main()
                     HANDLE_FLAG_INHERIT,
                     0);
                 ASSERT(success, "'SetHandleInformation' failed.");
-
+                
                 STARTUPINFOA startup_info = {
                     .cb = sizeof(STARTUPINFOA),
                     .hStdError = compile_stdouts_write[num_compiles],
@@ -517,7 +520,7 @@ int main()
                     .dwFlags = STARTF_USESTDHANDLES,
                 };
                 PROCESS_INFORMATION proc_info = {};
-                const BOOL ret = CreateProcessA(NULL, (char*)cmd, NULL, NULL, TRUE, 0, NULL, NULL, &startup_info, &proc_info);
+                const BOOL ret = CreateProcess(NULL, (char*)cmd, NULL, NULL, TRUE, 0, NULL, NULL, &startup_info, &proc_info);
                 ASSERT(ret, "run_cmd proc failure");
 
                 // This process must close the stdout write handle (we don't need it).
@@ -530,52 +533,50 @@ int main()
             }
         }
 
-        WaitForMultipleObjects(num_compiles, compile_procs, TRUE, INFINITE);
-
-        String256 program_name_exe = str_concat_cstr(make_str(program_name), ".exe");
-
-        const HANDLE hstdout = GetStdHandle(STD_OUTPUT_HANDLE);
-        for(u64 i = 0; i < num_compiles; i++)
+        // Wait for processes to finish in order. This is a simple but inefficient way to keep
+        // output ordered.
+        for(u64 i_proc = 0; i_proc < num_compiles; i_proc++)
         {
+            // Wait for this process to finish while draining its output pipe.
+            DWORD wait_res;
+            u32 num_read;
+            do
             {
-                u32 exit_code;
-                u32 success = GetExitCodeProcess(compile_procs[i], &exit_code);
-                ASSERT(success, "'GetExitCodeProcess' failed with error %u.", GetLastError());
-
-                compile_error = compile_error || (exit_code != 0);
-            }
-
-            u8 buf[4096];
-            while(1)
-            {
-                u32 num_read;
+                u8 buf[4096];
                 u32 success = ReadFile(
-                    compile_stdouts_read[i],
+                    compile_stdouts_read[i_proc],
                     buf,
                     sizeof(buf) - 1,
                     &num_read,
                     NULL);
                 u32 err = GetLastError();
-                ASSERT(success || err == ERROR_BROKEN_PIPE, "'ReadFile' failed with error %u.", err);
-                if(num_read == 0)
-                {
-                    break;
-                }
-
+                ASSERT(success || err == ERROR_BROKEN_PIPE, "'ReadFile' failed %u.", err);
                 buf[num_read] = 0;
-
                 printf("%s", buf);
-            }
+                fflush(stdout);
 
-            CloseHandle(compile_procs[i]);
-            CloseHandle(compile_threads[i]);
-            CloseHandle(compile_stdouts_read[i]);
+                wait_res = WaitForSingleObject(compile_procs[i_proc], 0);
+                ASSERT(wait_res == WAIT_OBJECT_0 || wait_res == WAIT_TIMEOUT, "'WaitForSingleObject' failed %u.", GetLastError());
+            }
+            while(!(wait_res == WAIT_OBJECT_0 && num_read == 0));
+
+            u32 exit_code;
+            u32 success = GetExitCodeProcess(compile_procs[i_proc], &exit_code);
+            ASSERT(success, "'GetExitCodeProcess' failed %u.", GetLastError());
+               
+            compile_error = compile_error || (exit_code != 0);
+
+            CloseHandle(compile_procs[i_proc]);
+            CloseHandle(compile_threads[i_proc]);
+            CloseHandle(compile_stdouts_read[i_proc]);
         }
 
         if(compile_error)
         {
             break;
         }
+
+        const String256 program_name_exe = str_concat_cstr(make_str(program_name), ".exe");
 
         {
             char cmd[4096] = {};
@@ -629,7 +630,7 @@ int main()
                 src.s,
                 dst.s,
                 FALSE);
-            ASSERT(success, "'CopyFile' failed with error %u.", GetLastError());
+            ASSERT(success, "'CopyFile' failed %u.", GetLastError());
         }
     }
 }

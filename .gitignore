@@ -1,4 +1,6 @@
 build
 
+*.rdbg
+
 build.exe
 build.obj

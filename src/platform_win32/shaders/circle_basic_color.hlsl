@@ -13,6 +13,7 @@ struct PS_INPUT
 {
     float4 pos   : SV_POSITION;
     float4 color : COLOR0;
+    float2 model_pos : POSITION4;
 };
 
 cbuffer cbuffer0 : register(b0)
@@ -30,10 +31,15 @@ PS_INPUT vs(VS_INPUT input)
         1.0f);
     output.pos = mul(utransform, res);
     output.color = input.instance_color;
+    output.model_pos = input.pos;
     return output;
 }
 
 float4 ps(PS_INPUT input) : SV_TARGET
 {
+    if(length(input.model_pos) > 0.5f)
+    {
+        discard;
+    }
     return input.color;
 }

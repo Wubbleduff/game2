@@ -1,4 +1,6 @@
 
+#include "platform.h"
+
 #include "platform_win32/platform_win32_core.h"
 #include "platform_win32/platform_win32_input.h"
 
@@ -8,8 +10,6 @@
 #include "external/stb_sprintf.h"
 
 struct PlatformWin32Core* g_platform_win32_core;
-
-int _fltused = 0;
 
 void assert_fn(const u64 c, const char* msg, ...)
 {
@@ -24,6 +24,8 @@ void assert_fn(const u64 c, const char* msg, ...)
         DebugBreak();
     }
 }
+
+int _fltused = 0;
 
 #pragma function(memset)
 void *memset(void *dst, int c, size_t count)
@@ -206,6 +208,9 @@ void platform_win32_init_core(struct PlatformWin32Core* mem)
 
 u8 platform_win32_read_events()
 {
+    struct PlatformWin32Core* win32_core = platform_win32_get_core();
+    struct PlatformWin32Input* win32_input = platform_win32_get_input();
+
     MSG msg;
     while(PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
     {
@@ -218,6 +223,16 @@ u8 platform_win32_read_events()
         DispatchMessage(&msg);
     }
 
+    win32_input->prev_mouse_screen_x = win32_input->mouse_screen_x;
+    win32_input->prev_mouse_screen_y = win32_input->mouse_screen_y;
+    
+    POINT p;
+    GetCursorPos(&p);
+    ScreenToClient(win32_core->hwnd, &p);
+
+    win32_input->mouse_screen_x = p.x;
+    win32_input->mouse_screen_y = p.y;
+
     return 1;
 }
 
@@ -227,4 +242,11 @@ s64 platform_win32_get_time_ns()
     LARGE_INTEGER cy;
     QueryPerformanceCounter(&cy);
     return cy.QuadPart * (1000000000LL / win32_core->clock_freq_hz);
+}
+
+f32 get_screen_aspect_ratio()
+{
+    const struct PlatformWin32Core* win32_core = platform_win32_get_core();
+
+    return (f32)win32_core->client_height / (f32)win32_core->client_width;
 }
