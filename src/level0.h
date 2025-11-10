@@ -3,12 +3,12 @@
 
 #include "common.h"
 
-#define LEVEL0_WIDTH 128.0f
-#define LEVEL0_HEIGHT 64.0f
-#define LEVEL0_LEFT (-(LEVEL0_WIDTH / 2))
-#define LEVEL0_RIGHT (LEVEL0_WIDTH / 2)
-#define LEVEL0_BOTTOM (-(LEVEL0_HEIGHT / 2))
-#define LEVEL0_TOP (LEVEL0_HEIGHT / 2)
+#define LEVEL0_WIDTH 128
+#define LEVEL0_HEIGHT 64
+#define LEVEL0_LEFT (-((f32)LEVEL0_WIDTH / 2))
+#define LEVEL0_RIGHT ((f32)LEVEL0_WIDTH / 2)
+#define LEVEL0_BOTTOM (-((f32)LEVEL0_HEIGHT / 2))
+#define LEVEL0_TOP ((f32)LEVEL0_HEIGHT / 2)
 
 static const f32 level0_wall_pos_x[] = {
     // Bounds

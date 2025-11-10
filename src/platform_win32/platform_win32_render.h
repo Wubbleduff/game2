@@ -44,7 +44,7 @@ enum RasterizerStateType
 
 #define MAX_INSTANCES 32768
 
-#define MAX_QUADS 1024
+#define MAX_QUADS 32768
 struct RenderWorldQuadData
 {
     u32 num;
@@ -104,3 +104,7 @@ struct GameState;
 void platform_win32_render(struct GameState* game_state);
 
 void platform_win32_swap_and_clear_buffer(u8 r, u8 g, u8 b);
+
+void add_world_quad(f32 pos_x, f32 pos_y, f32 pos_z, f32 width, f32 height, f32 color_r, f32 color_g, f32 color_b, f32 color_a);
+
+void add_world_circle(f32 pos_x, f32 pos_y, f32 pos_z, f32 radius, f32 color_r, f32 color_g, f32 color_b, f32 color_a);

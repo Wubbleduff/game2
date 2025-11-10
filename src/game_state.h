@@ -2,6 +2,7 @@
 #pragma once
 
 #include "common.h"
+#include "constants.h"
 
 struct GameState
 {
@@ -10,15 +11,17 @@ struct GameState
     f32 cam_w;
     f32 cam_aspect_ratio;
 
-    f32 player_vel_x;
-    f32 player_vel_y;
-    f32 player_pos_x;
-    f32 player_pos_y;
-    f32 player_pos_z;
-
-    f32 player_radius;
-
     u32 cur_level;
+
+    u32 num_players;
+    f32 player_vel_x[MAX_PLAYERS];
+    f32 player_vel_y[MAX_PLAYERS];
+    f32 player_pos_x[MAX_PLAYERS];
+    f32 player_pos_y[MAX_PLAYERS];
+    f32 player_pos_z[MAX_PLAYERS];
+    u8 player_type[MAX_PLAYERS];
+    u8 player_team_id[MAX_PLAYERS];
+
 };
 
 void init_game_state(struct GameState* game_state);

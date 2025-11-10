@@ -128,8 +128,8 @@ void platform_win32_get_mouse_screen_delta(s32* x, s32* y)
 ////////////////////////////////////////////////////////////////////////////////
 // Game specific impl
 
-void platform_win32_read_game_input(
-    struct GameInput* game_input,
+void platform_win32_read_player_input(
+    struct PlayerInput* player_input,
     const f32 cam_pos_x,
     const f32 cam_pos_y,
     const f32 cam_width,
@@ -146,8 +146,8 @@ void platform_win32_read_game_input(
     // Cursor world position.
     {
         const f32 cam_height = cam_width * cam_aspect_ratio;
-        game_input->cursor_pos_x = (f32)cam_pos_x + ((f32)mouse_screen_x / (f32)screen_width - 0.5f) * cam_width;
-        game_input->cursor_pos_y = (f32)cam_pos_y - ((f32)mouse_screen_y / (f32)screen_height - 0.5f) * cam_height;
+        player_input->cursor_pos_x = (f32)cam_pos_x + ((f32)mouse_screen_x / (f32)screen_width - 0.5f) * cam_width;
+        player_input->cursor_pos_y = (f32)cam_pos_y - ((f32)mouse_screen_y / (f32)screen_height - 0.5f) * cam_height;
     }
     
     // Player move.
@@ -158,7 +158,7 @@ void platform_win32_read_game_input(
         v.y += (f32)platform_win32_is_keyboard_key_down('W');
         v.y -= (f32)platform_win32_is_keyboard_key_down('S');
         v = normalize_or_v2(v, zero_v2());
-        game_input->player_move_x = v.x;
-        game_input->player_move_y = v.y;
+        player_input->player_move_x = v.x;
+        player_input->player_move_y = v.y;
     }
 }

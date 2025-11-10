@@ -380,7 +380,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
     win32_render->world_circles.num = 0;
 }
 
-static void add_world_quad(
+void add_world_quad(
     f32 pos_x,
     f32 pos_y,
     f32 pos_z,
@@ -408,7 +408,7 @@ static void add_world_quad(
     data->num++;
 }
 
-static void add_world_circle(
+void add_world_circle(
     f32 pos_x,
     f32 pos_y,
     f32 pos_z,
@@ -516,17 +516,53 @@ void platform_win32_render(struct GameState* game_state)
         }
     }
 
+    for(s64 x = -128; x < 128; x++)
+    {
+        add_world_quad(
+            (f32)x,
+            0.0f,
+            0.99f,
+            0.05f,
+            256.0f,
+            0.5f,
+            0.5f,
+            0.5f,
+            1.0f
+        );
+    }
+    for(s64 y = -128; y < 128; y++)
+    {
+        add_world_quad(
+            0.0f,
+            (f32)y,
+            0.99f,
+            256.0f,
+            0.05f,
+            0.5f,
+            0.5f,
+            0.5f,
+            1.0f
+        );
+    }
+
     _Static_assert(MAX_QUADS <= MAX_INSTANCES, "MAX_QUADS overflow.");
-    add_world_circle(
-        game_state->player_pos_x,
-        game_state->player_pos_y,
-        game_state->player_pos_z,
-        game_state->player_radius,
-        0.0f,
-        0.8f,
-        1.0f,
-        1.0f
-    );
+    for(u64 i = 0; i < game_state->num_players; i++)
+    {
+        v4 color =
+            game_state->player_team_id[i] == 0
+            ? make_v4(0.0f, 0.8f, 1.0f, 1.0f)
+            : make_v4(1.0f, 0.4f, 0.0f, 1.0f);
+        add_world_circle(
+            game_state->player_pos_x[i],
+            game_state->player_pos_y[i],
+            game_state->player_pos_z[i],
+            0.5f,
+            color.x,
+            color.y,
+            color.z,
+            color.w
+        );
+    }
 
     {
         ASSERT(game_state->cur_level == 0, "TODO levels");
