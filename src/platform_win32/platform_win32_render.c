@@ -566,26 +566,24 @@ void platform_win32_render(struct GameState* game_state)
 
     {
         ASSERT(game_state->cur_level == 0, "TODO levels");
-        const f32* wall_pos_x = level0_wall_pos_x;
-        const f32* wall_pos_y = level0_wall_pos_y;
-        const f32* wall_width = level0_wall_width;
-        const f32* wall_height = level0_wall_height;
-        const u32 num_walls = ARRAY_COUNT(level0_wall_pos_x);
 
-        for(u64 i = 0; i < num_walls; i++)
+        const struct Level* level = &LEVEL0;
+        for(u64 i = 0; i < level->num_walls; i++)
         {
+            const struct LevelWall* wall = &level->walls[i];
             add_world_quad(
-                wall_pos_x[i],
-                wall_pos_y[i],
-                0.5f,
-                wall_width[i],
-                wall_height[i],
-                1.0f,
-                0.5f,
-                0.2f,
+                (f32)wall->x + (f32)wall->w * 0.5f,
+                (f32)wall->y + (f32)wall->h * 0.5f,
+                0.6f,
+                (f32)wall->w,
+                (f32)wall->h,
+                0.9f,
+                0.6f,
+                0.0f,
                 1.0f
             );
         }
+        
     }
 
     {

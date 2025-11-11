@@ -73,6 +73,9 @@ struct Build build[] =
             COMMON_COMPILE_FLAGS,
             RELEASE_COMPILE_FLAGS,
             "-march=skylake",
+
+            // TODO: Remove on release
+            "/Zi",
         ),
 
         .link_cmd = "lld-link",
@@ -80,6 +83,9 @@ struct Build build[] =
             const char*,
             link_flags,
             COMMON_LINKER_FLAGS,
+
+            // TODO: Remove on release
+            "/DEBUG:FULL",
         ),
         
         ARRAY_INIT(
@@ -124,6 +130,9 @@ struct Build build[] =
             cc_flags,
             COMMON_COMPILE_FLAGS,
             RELEASE_COMPILE_FLAGS,
+
+            // TODO: Remove on release
+            "/Zi",
         ),
 
         .link_cmd = "link",
@@ -131,6 +140,9 @@ struct Build build[] =
             const char*,
             link_flags,
             COMMON_LINKER_FLAGS,
+
+            // TODO: Remove on release
+            "/DEBUG:FULL",
         ),
         
         ARRAY_INIT(

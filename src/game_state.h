@@ -21,7 +21,6 @@ struct GameState
     f32 player_pos_z[MAX_PLAYERS];
     u8 player_type[MAX_PLAYERS];
     u8 player_team_id[MAX_PLAYERS];
-
 };
 
 void init_game_state(struct GameState* game_state);

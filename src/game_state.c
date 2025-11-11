@@ -153,18 +153,14 @@ void update_game_state(
                 v2 player_vel = make_v2(player_vel_x[i], player_vel_y[i]);
 
                 ASSERT(prev_game_state->cur_level == 0, "TODO levels");
-                const f32* wall_pos_x = level0_wall_pos_x;
-                const f32* wall_pos_y = level0_wall_pos_y;
-                const f32* wall_width = level0_wall_width;
-                const f32* wall_height = level0_wall_height;
-                const u32 num_walls = ARRAY_COUNT(level0_wall_pos_x);
-
-                for(u32 i_wall = 0; i_wall < num_walls; i_wall++)
+                const struct Level* level = &LEVEL0;
+                for(u32 i_wall = 0; i_wall < level->num_walls; i_wall++)
                 {
-                    const f32 wall_left = wall_pos_x[i_wall] - wall_width[i_wall] * 0.5f;
-                    const f32 wall_right = wall_pos_x[i_wall] + wall_width[i_wall] * 0.5f;
-                    const f32 wall_bottom = wall_pos_y[i_wall] - wall_height[i_wall] * 0.5f;
-                    const f32 wall_top = wall_pos_y[i_wall] + wall_height[i_wall] * 0.5f;
+                    const struct LevelWall* wall = &level->walls[i_wall];
+                    const f32 wall_left = (f32)wall->x;
+                    const f32 wall_right = (f32)wall->x + (f32)wall->w;
+                    const f32 wall_bottom = (f32)wall->y;
+                    const f32 wall_top = (f32)wall->y + (f32)wall->h;
 
                     v2 clamped_pos = player_pos;
                     clamped_pos.x = clamp_f32(player_pos.x, wall_left, wall_right);
@@ -198,8 +194,5 @@ void update_game_state(
         COPY_ARRAY(game_state->player_vel_y, player_vel_y);
         COPY_ARRAY(game_state->player_pos_x, player_pos_x);
         COPY_ARRAY(game_state->player_pos_y, player_pos_y);
-
-        
     }
-
 }

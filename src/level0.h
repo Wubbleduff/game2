@@ -2,90 +2,38 @@
 #pragma once
 
 #include "common.h"
+#include "level.h"
 
 #define LEVEL0_WIDTH 128
 #define LEVEL0_HEIGHT 64
-#define LEVEL0_LEFT (-((f32)LEVEL0_WIDTH / 2))
-#define LEVEL0_RIGHT ((f32)LEVEL0_WIDTH / 2)
-#define LEVEL0_BOTTOM (-((f32)LEVEL0_HEIGHT / 2))
-#define LEVEL0_TOP ((f32)LEVEL0_HEIGHT / 2)
+#define LEVEL0_LEFT (-LEVEL0_WIDTH / 2)
+#define LEVEL0_RIGHT (LEVEL0_WIDTH / 2)
+#define LEVEL0_BOTTOM (-LEVEL0_HEIGHT / 2)
+#define LEVEL0_TOP (LEVEL0_HEIGHT / 2)
 
-static const f32 level0_wall_pos_x[] = {
-    // Bounds
-    LEVEL0_LEFT - 50.0f,
-    LEVEL0_RIGHT + 50.0f,
-    0.0f,
-    0.0f,
+static const struct Level LEVEL0 = 
+{
+    .width = LEVEL0_WIDTH,
+    .height = LEVEL0_HEIGHT,
 
-    // Base
-    LEVEL0_LEFT + 6.0f + 1.0f,
-    LEVEL0_RIGHT - 6.0f - 1.0f,
+    .num_walls = 12,
+    .walls = {
 
-    // Walls
-    -28.0f,
-    -28.0f,
-    -28.0f,
-    28.0f,
-    28.0f,
-    28.0f,
-};
+        {LEVEL0_LEFT - 100, LEVEL0_BOTTOM - 100, 100, 300},
+        {     LEVEL0_RIGHT, LEVEL0_BOTTOM - 100, 100, 300},
 
-static const f32 level0_wall_pos_y[] = {
-    // Bounds
-    0.0f,
-    0.0f,
-    LEVEL0_BOTTOM - 50.0f,
-    LEVEL0_TOP + 50.0f,
+        {LEVEL0_LEFT - 100, LEVEL0_BOTTOM - 100, 300, 100},
+        {LEVEL0_LEFT - 100,          LEVEL0_TOP, 300, 100},
 
-    // Base
-    0.0f,
-    0.0f,
+        { LEVEL0_LEFT + 1,  -6, 12, 12 },
+        { LEVEL0_RIGHT - 12 - 1, -6, 12, 12 },
 
-    // Walls
-    32.0f - 8.0f,
-    0.0f,
-    -32.0f + 8.0f,
-    32.0f - 8.0f,
-    0.0f,
-    -32.0f + 8.0f,
-};
+        { -24,   LEVEL0_BOTTOM,  2, 16 },
+        { -24,              -8,  2, 16 },
+        { -24, LEVEL0_TOP - 16,  2, 16 },
 
-static const f32 level0_wall_width[] = {
-    // Bounds
-    100.0f,
-    100.0f,
-    200.0f,
-    200.0f,
-
-    // Base
-    12.0f,
-    12.0f,
-
-    // Walls
-    2.0f,
-    2.0f,
-    2.0f,
-    2.0f,
-    2.0f,
-    2.0f,
-};
-
-static const f32 level0_wall_height[] = {
-    // Bounds
-    200.0f,
-    200.0f,
-    100.0f,
-    100.0f,
-
-    // Base
-    12.0f,
-    12.0f,
-
-    // Walls
-    16.0f,
-    16.0f,
-    16.0f,
-    16.0f,
-    16.0f,
-    16.0f,
-};
+        { 24,   LEVEL0_BOTTOM,  2, 16 },
+        { 24,              -8,  2, 16 },
+        { 24, LEVEL0_TOP - 16,  2, 16 },
+    },
+}; 

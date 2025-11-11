@@ -97,3 +97,52 @@ static inline u32 truncate_power_of_2_u32(const u32 a)
     return a == 0 ? 0 : (1 << (31 - _lzcnt_u32(a)));
 }
 
+static inline void swap_u8(u8* a, u8* b)
+{
+    *a ^= *b;
+    *b ^= *a;
+    *a ^= *b;
+}
+static inline void swap_s8(s8* a, s8* b)
+{
+    *a ^= *b;
+    *b ^= *a;
+    *a ^= *b;
+}
+static inline void swap_u16(u16* a, u16* b)
+{
+    *a ^= *b;
+    *b ^= *a;
+    *a ^= *b;
+}
+static inline void swap_s16(s16* a, s16* b)
+{
+    *a ^= *b;
+    *b ^= *a;
+    *a ^= *b;
+}
+static inline void swap_u32(u32* a, u32* b)
+{
+    *a ^= *b;
+    *b ^= *a;
+    *a ^= *b;
+}
+static inline void swap_s32(s32* a, s32* b)
+{
+    *a ^= *b;
+    *b ^= *a;
+    *a ^= *b;
+}
+static inline void swap_u64(u64* a, u64* b)
+{
+    *a ^= *b;
+    *b ^= *a;
+    *a ^= *b;
+}
+static inline void swap_s64(s64* a, s64* b)
+{
+    *a ^= *b;
+    *b ^= *a;
+    *a ^= *b;
+}
+
