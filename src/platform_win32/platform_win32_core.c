@@ -244,7 +244,7 @@ s64 platform_win32_get_time_ns()
     return cy.QuadPart * (1000000000LL / win32_core->clock_freq_hz);
 }
 
-f32 get_screen_aspect_ratio()
+f32 platform_get_screen_aspect_ratio()
 {
     const struct PlatformWin32Core* win32_core = platform_win32_get_core();
 

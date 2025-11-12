@@ -16,8 +16,8 @@ void update_npc(
 {
     (void)game_state;
 
-    player->player_move_x = 0.0f;
-    player->player_move_y = 0.0f;
+    player->move_x = 0.0f;
+    player->move_y = 0.0f;
 
     // if(game_state->player_team_id[player_id] == 0)
     // {
@@ -54,7 +54,6 @@ void update_npc(
             num_path > 1
             ? make_v2((f32)path_x[1] + 0.5f, (f32)path_y[1] + 0.5f)
             : make_v2((f32)path_x[0] + 0.5f, (f32)path_y[0] + 0.5f);
-            
 
         v2 dir = sub_v2(next_pos, player_pos);
         f32 len = length_v2(dir);
@@ -69,7 +68,7 @@ void update_npc(
             dir = scale_v2(dir, 0.3f);
         }
 
-        player->player_move_x = dir.x;
-        player->player_move_y = dir.y;
+        player->move_x = dir.x;
+        player->move_y = dir.y;
     }
 }

@@ -4,6 +4,8 @@
 #include "common.h"
 #include "constants.h"
 
+#define MAX_BULLETS 8192
+
 struct GameState
 {
     f32 cam_pos_x;
@@ -18,15 +20,13 @@ struct GameState
     f32 player_vel_y[MAX_PLAYERS];
     f32 player_pos_x[MAX_PLAYERS];
     f32 player_pos_y[MAX_PLAYERS];
-    f32 player_pos_z[MAX_PLAYERS];
     u8 player_type[MAX_PLAYERS];
     u8 player_team_id[MAX_PLAYERS];
+
+    u32 num_bullets;
+    f32 bullet_vel_x[MAX_BULLETS];
+    f32 bullet_vel_y[MAX_BULLETS];
+    f32 bullet_pos_x[MAX_BULLETS];
+    f32 bullet_pos_y[MAX_BULLETS];
+    u8 bullet_team_id[MAX_BULLETS];
 };
-
-void init_game_state(struct GameState* game_state);
-
-struct GameInput;
-void update_game_state(
-    struct GameState* game_state,
-    const struct GameState* prev_game_state,
-    const struct GameInput* game_input);

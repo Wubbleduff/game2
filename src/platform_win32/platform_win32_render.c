@@ -1,8 +1,9 @@
 
 #include "math.h"
-#include "game_state.h"
+#include "engine.h"
 #include "platform.h"
 
+// TODO: remove
 #include "level0.h"
 
 #include "platform_win32/platform_win32_render.h"
@@ -380,7 +381,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
     win32_render->world_circles.num = 0;
 }
 
-void add_world_quad(
+void platform_win32_add_world_quad(
     f32 pos_x,
     f32 pos_y,
     f32 pos_z,
@@ -395,7 +396,7 @@ void add_world_quad(
 
     struct RenderWorldQuadData* data = &win32_render->world_quads;
     const u32 num = data->num;
-    ASSERT(num < ARRAY_COUNT(data->pos_x), "'add_world_quad' overflow %u", ARRAY_COUNT(data->pos_x));
+    ASSERT(num < ARRAY_COUNT(data->pos_x), "'platform_win32_add_world_quad' overflow %u", ARRAY_COUNT(data->pos_x));
     data->pos_x[num] = pos_x;
     data->pos_y[num] = pos_y;
     data->pos_z[num] = pos_z;
@@ -408,7 +409,7 @@ void add_world_quad(
     data->num++;
 }
 
-void add_world_circle(
+void platform_win32_add_world_circle(
     f32 pos_x,
     f32 pos_y,
     f32 pos_z,
@@ -422,7 +423,7 @@ void add_world_circle(
 
     struct RenderWorldCircleData* data = &win32_render->world_circles;
     const u32 num = data->num;
-    ASSERT(num < ARRAY_COUNT(data->pos_x), "'add_world_circle' overflow %u", ARRAY_COUNT(data->pos_x));
+    ASSERT(num < ARRAY_COUNT(data->pos_x), "'platform_win32_add_world_circle' overflow %u", ARRAY_COUNT(data->pos_x));
     data->pos_x[num] = pos_x;
     data->pos_y[num] = pos_y;
     data->pos_z[num] = pos_z;
@@ -434,10 +435,12 @@ void add_world_circle(
     data->num++;
 }
 
-void platform_win32_render(struct GameState* game_state)
+void platform_win32_render(struct Engine* engine)
 {
     struct PlatformWin32Core* win32_core = platform_win32_get_core();    
     struct PlatformWin32Render* win32_render = platform_win32_get_render();
+
+    struct GameState* game_state = &engine->game_states[engine->cur_game_state_idx];
 
     ID3D11DeviceContext* const device_context = win32_render->device_context;
 
@@ -461,7 +464,7 @@ void platform_win32_render(struct GameState* game_state)
         const f32 cam_pos_x = game_state->cam_pos_x;
         const f32 cam_pos_y = game_state->cam_pos_y;
 
-        const f32 aspect_ratio = get_screen_aspect_ratio();
+        const f32 aspect_ratio = platform_get_screen_aspect_ratio();
         const f32 cam_w = game_state->cam_w;
         const f32 cam_h = cam_w * aspect_ratio;
         m4x4 cam_translation_m4x4 = {
@@ -518,7 +521,7 @@ void platform_win32_render(struct GameState* game_state)
 
     for(s64 x = -128; x < 128; x++)
     {
-        add_world_quad(
+        platform_win32_add_world_quad(
             (f32)x,
             0.0f,
             0.99f,
@@ -532,7 +535,7 @@ void platform_win32_render(struct GameState* game_state)
     }
     for(s64 y = -128; y < 128; y++)
     {
-        add_world_quad(
+        platform_win32_add_world_quad(
             0.0f,
             (f32)y,
             0.99f,
@@ -552,10 +555,10 @@ void platform_win32_render(struct GameState* game_state)
             game_state->player_team_id[i] == 0
             ? make_v4(0.0f, 0.8f, 1.0f, 1.0f)
             : make_v4(1.0f, 0.4f, 0.0f, 1.0f);
-        add_world_circle(
+        platform_win32_add_world_circle(
             game_state->player_pos_x[i],
             game_state->player_pos_y[i],
-            game_state->player_pos_z[i],
+            0.5f,
             0.5f,
             color.x,
             color.y,
@@ -571,7 +574,7 @@ void platform_win32_render(struct GameState* game_state)
         for(u64 i = 0; i < level->num_walls; i++)
         {
             const struct LevelWall* wall = &level->walls[i];
-            add_world_quad(
+            platform_win32_add_world_quad(
                 (f32)wall->x + (f32)wall->w * 0.5f,
                 (f32)wall->y + (f32)wall->h * 0.5f,
                 0.6f,

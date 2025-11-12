@@ -100,11 +100,11 @@ struct PlatformWin32Render* platform_win32_get_render();
 
 void platform_win32_init_render(struct PlatformWin32Render* mem);
 
-struct GameState;
-void platform_win32_render(struct GameState* game_state);
+struct Engine;
+void platform_win32_render(struct Engine* engine);
 
 void platform_win32_swap_and_clear_buffer(u8 r, u8 g, u8 b);
 
-void add_world_quad(f32 pos_x, f32 pos_y, f32 pos_z, f32 width, f32 height, f32 color_r, f32 color_g, f32 color_b, f32 color_a);
+void platform_win32_add_world_quad(f32 pos_x, f32 pos_y, f32 pos_z, f32 width, f32 height, f32 color_r, f32 color_g, f32 color_b, f32 color_a);
 
-void add_world_circle(f32 pos_x, f32 pos_y, f32 pos_z, f32 radius, f32 color_r, f32 color_g, f32 color_b, f32 color_a);
+void platform_win32_add_world_circle(f32 pos_x, f32 pos_y, f32 pos_z, f32 radius, f32 color_r, f32 color_g, f32 color_b, f32 color_a);

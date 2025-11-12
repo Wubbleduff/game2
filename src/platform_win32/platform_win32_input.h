@@ -56,10 +56,11 @@ void platform_win32_get_mouse_screen_delta(s32* x, s32* y);
 ////////////////////////////////////////////////////////////////////////////////
 // Game specific impl
 
-struct GameInput;
-void platform_win32_read_player_input(
-    struct PlayerInput* game_input,
+void platform_win32_get_mouse_world_position(
+    f32* x,
+    f32* y,
     const f32 cam_pos_x,
     const f32 cam_pos_y,
     const f32 cam_width,
     const f32 cam_aspect_ratio);
+
