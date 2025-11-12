@@ -548,7 +548,6 @@ void platform_win32_render(struct Engine* engine)
         );
     }
 
-    _Static_assert(MAX_QUADS <= MAX_INSTANCES, "MAX_QUADS overflow.");
     for(u64 i = 0; i < game_state->num_players; i++)
     {
         v4 color =
@@ -560,6 +559,24 @@ void platform_win32_render(struct Engine* engine)
             game_state->player_pos_y[i],
             0.5f,
             0.5f,
+            color.x,
+            color.y,
+            color.z,
+            color.w
+        );
+    }
+
+    for(u64 i = 0; i < game_state->num_bullets; i++)
+    {
+        v4 color =
+            game_state->bullet_team_id[i] == 0
+            ? make_v4(0.0f, 0.8f, 1.0f, 1.0f)
+            : make_v4(1.0f, 0.4f, 0.0f, 1.0f);
+        platform_win32_add_world_circle(
+            game_state->bullet_pos_x[i],
+            game_state->bullet_pos_y[i],
+            0.1f,
+            0.1f,
             color.x,
             color.y,
             color.z,

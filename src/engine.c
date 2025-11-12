@@ -61,21 +61,26 @@ static void update_physics(
     const f32 max_accel = 4000.0f / (f32)num_iterations;
     const f32 drag = -250.0f / (f32)num_iterations;
 
-    f32 player_vel_x[MAX_PLAYERS];
-    f32 player_vel_y[MAX_PLAYERS];
-    f32 player_pos_x[MAX_PLAYERS];
-    f32 player_pos_y[MAX_PLAYERS];
-    f32 player_radius[MAX_PLAYERS];
-    COPY_ARRAY(player_vel_x, prev_game_state->player_vel_x);
-    COPY_ARRAY(player_vel_y, prev_game_state->player_vel_y);
-    COPY_ARRAY(player_pos_x, prev_game_state->player_pos_x);
-    COPY_ARRAY(player_pos_y, prev_game_state->player_pos_y);
     const u32 num_players = prev_game_state->num_players;
+    COPY(game_state->player_vel_x, prev_game_state->player_vel_x, num_players);
+    COPY(game_state->player_vel_y, prev_game_state->player_vel_y, num_players);
+    COPY(game_state->player_pos_x, prev_game_state->player_pos_x, num_players);
+    COPY(game_state->player_pos_y, prev_game_state->player_pos_y, num_players);
+    const f32 player_radius = 0.5f;
+    f32* player_vel_x = game_state->player_vel_x;
+    f32* player_vel_y = game_state->player_vel_y;
+    f32* player_pos_x = game_state->player_pos_x;
+    f32* player_pos_y = game_state->player_pos_y;
 
-    for(u32 i = 0; i < num_players; i++)
-    {
-        player_radius[i] = 0.5f;
-    }
+    const u32 num_bullets = prev_game_state->num_bullets;
+    COPY(game_state->bullet_vel_x, prev_game_state->bullet_vel_x, num_bullets);
+    COPY(game_state->bullet_vel_y, prev_game_state->bullet_vel_y, num_bullets);
+    COPY(game_state->bullet_pos_x, prev_game_state->bullet_pos_x, num_bullets);
+    COPY(game_state->bullet_pos_y, prev_game_state->bullet_pos_y, num_bullets);
+    f32* bullet_vel_x = game_state->bullet_vel_x;
+    f32* bullet_vel_y = game_state->bullet_vel_y;
+    f32* bullet_pos_x = game_state->bullet_pos_x;
+    f32* bullet_pos_y = game_state->bullet_pos_y;
 
     // Iteratively update physics.
     for(u32 iteration = 0; iteration < num_iterations; iteration++)
@@ -109,7 +114,7 @@ static void update_physics(
         {
             const v2 a_pos = make_v2(player_pos_x[a_id], player_pos_y[a_id]);
             v2 a_vel = make_v2(player_vel_x[a_id], player_vel_y[a_id]);
-            const f32 a_radius = player_radius[a_id];
+            const f32 a_radius = player_radius;
 
             // Note: This technically makes us dependent on the order of updated players. We could fix this by introducing an intermediate buffer for
             //       position and velocity.
@@ -117,7 +122,7 @@ static void update_physics(
             {
                 const v2 b_pos = make_v2(player_pos_x[b_id], player_pos_y[b_id]);
                 v2 b_vel = make_v2(player_vel_x[b_id], player_vel_y[b_id]);
-                const f32 b_radius = player_radius[b_id];
+                const f32 b_radius = player_radius;
 
                 const v2 n = sub_v2(a_pos, b_pos);
                 const v2 rel_vel = sub_v2(a_vel, b_vel);
@@ -144,7 +149,7 @@ static void update_physics(
         for(u32 i = 0; i < num_players; i++)
         {
             const v2 player_pos = make_v2(player_pos_x[i], player_pos_y[i]);
-            const f32 player_r = player_radius[i];
+            const f32 player_r = player_radius;
 
             v2 player_vel = make_v2(player_vel_x[i], player_vel_y[i]);
 
@@ -178,17 +183,14 @@ static void update_physics(
         // 4. Integrate velocity into position.
         for(u32 i = 0; i < num_players; i++)
         {
-            const v2 player_vel = make_v2(player_vel_x[i], player_vel_y[i]);
-            v2 player_pos = make_v2(player_pos_x[i], player_pos_y[i]);
-            player_pos = add_v2(player_pos, scale_v2(player_vel, sub_dt));
-            player_pos_x[i] = player_pos.x;
-            player_pos_y[i] = player_pos.y;
+            player_pos_x[i] += player_vel_x[i] * sub_dt;
+            player_pos_y[i] += player_vel_y[i] * sub_dt;
         }
-
-        COPY_ARRAY(game_state->player_vel_x, player_vel_x);
-        COPY_ARRAY(game_state->player_vel_y, player_vel_y);
-        COPY_ARRAY(game_state->player_pos_x, player_pos_x);
-        COPY_ARRAY(game_state->player_pos_y, player_pos_y);
+        for(u32 i = 0; i < game_state->num_bullets; i++)
+        {
+            bullet_pos_x[i] += bullet_vel_x[i] * sub_dt;
+            bullet_pos_y[i] += bullet_vel_y[i] * sub_dt;
+        }
     }
 }
 
@@ -327,6 +329,8 @@ void tick_engine(struct Engine* engine)
     #endif
 
     {
+        COPY(next_game_state->bullet_team_id, prev_game_state->bullet_team_id, prev_game_state->num_bullets);
+
         const struct PlayerInput* player_input = &game_input.player_input[0];
         if(player_input_get_bool(player_input, PLAYER_INPUT_SHOOT))
         {
@@ -334,7 +338,7 @@ void tick_engine(struct Engine* engine)
             const v2 cursor_pos = make_v2(player_input->cursor_pos_x, player_input->cursor_pos_y);
 
             v2 vel = normalize_or_v2(sub_v2(cursor_pos, player_pos), zero_v2());
-            vel = scale_v2(vel, 1.0f);
+            vel = scale_v2(vel, 200.0f);
 
             const u32 num = prev_game_state->num_bullets;
             ASSERT(num < MAX_BULLETS, "Bullet overflow.");
@@ -343,7 +347,7 @@ void tick_engine(struct Engine* engine)
             next_game_state->bullet_pos_x[num] = player_pos.x;
             next_game_state->bullet_pos_y[num] = player_pos.y;
             next_game_state->bullet_team_id[num] = 0;
-            prev_game_state->num_bullets++;
+            next_game_state->num_bullets++;
         }
     }
 

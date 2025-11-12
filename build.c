@@ -532,8 +532,11 @@ int main()
                     .dwFlags = STARTF_USESTDHANDLES,
                 };
                 PROCESS_INFORMATION proc_info = {};
+				printf("%s", cmd);
+				fflush(stdout);
                 const BOOL ret = CreateProcess(NULL, (char*)cmd, NULL, NULL, TRUE, 0, NULL, NULL, &startup_info, &proc_info);
-                ASSERT(ret, "run_cmd proc failure");
+				const u32 err = GetLastError();
+				ASSERT(ret, "run_cmd proc failed %u", err);
 
                 // This process must close the stdout write handle (we don't need it).
                 // Otherwise, we cannot wait for the child to end.
