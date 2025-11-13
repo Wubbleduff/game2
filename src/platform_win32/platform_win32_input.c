@@ -183,5 +183,5 @@ void platform_read_player_input(
     }
 
     player_input_assign_bool(player_input, PLAYER_INPUT_SELECT, (u8)platform_win32_is_mouse_button_down(WIN32_MB_RIGHT));
-    player_input_assign_bool(player_input, PLAYER_INPUT_SHOOT, (u8)platform_win32_is_mouse_button_down(WIN32_MB_LEFT));
+    player_input_assign_bool(player_input, PLAYER_INPUT_SHOOT, (u8)platform_win32_is_mouse_button_toggled_down(WIN32_MB_LEFT));
 }
