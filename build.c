@@ -532,7 +532,6 @@ int main()
                     .dwFlags = STARTF_USESTDHANDLES,
                 };
                 PROCESS_INFORMATION proc_info = {};
-				printf("%s", cmd);
 				fflush(stdout);
                 const BOOL ret = CreateProcess(NULL, (char*)cmd, NULL, NULL, TRUE, 0, NULL, NULL, &startup_info, &proc_info);
 				const u32 err = GetLastError();

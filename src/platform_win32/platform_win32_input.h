@@ -23,8 +23,8 @@ struct PlatformWin32Input
     u8 keyboard_buf[0x100];
     u8 prev_keyboard_buf[0x100];
 
-    u8 mouse_button[(NUM_WIN32_MOUSE_BUTTONS + 7) & ~7];
-    u8 prev_mouse_button[(NUM_WIN32_MOUSE_BUTTONS + 7) & ~7];
+    u8 mouse_button[(NUM_WIN32_MOUSE_BUTTONS + 7) / 8];
+    u8 prev_mouse_button[(NUM_WIN32_MOUSE_BUTTONS + 7) / 8];
 
     s32 mouse_screen_x;
     s32 mouse_screen_y;

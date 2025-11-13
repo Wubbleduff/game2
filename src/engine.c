@@ -8,7 +8,6 @@
 #include "level0.h"
 
 
-
 static void init_game_state(struct GameState* game_state)
 {
     game_state->cam_pos_x = 0.0f;
@@ -263,7 +262,7 @@ void tick_engine(struct Engine* engine)
     // Player select NPCs.
     {
         ASSERT(game_input.num_players == 32, "TODO: variable players");
-        struct PlayerInput* player_input = &game_input.player_input[0];
+        const struct PlayerInput* player_input = &game_input.player_input[0];
         const v2 cursor_pos = make_v2(player_input->cursor_pos_x, player_input->cursor_pos_y);
     
         if(!player_input_get_bool(player_input, PLAYER_INPUT_SELECT))
@@ -329,8 +328,13 @@ void tick_engine(struct Engine* engine)
     #endif
 
     {
+        next_game_state->num_bullets = prev_game_state->num_bullets;
+        COPY(next_game_state->bullet_vel_x, prev_game_state->bullet_vel_x, prev_game_state->num_bullets);
+        COPY(next_game_state->bullet_vel_y, prev_game_state->bullet_vel_y, prev_game_state->num_bullets);
+        COPY(next_game_state->bullet_pos_x, prev_game_state->bullet_pos_x, prev_game_state->num_bullets);
+        COPY(next_game_state->bullet_pos_y, prev_game_state->bullet_pos_y, prev_game_state->num_bullets);
         COPY(next_game_state->bullet_team_id, prev_game_state->bullet_team_id, prev_game_state->num_bullets);
-
+        
         const struct PlayerInput* player_input = &game_input.player_input[0];
         if(player_input_get_bool(player_input, PLAYER_INPUT_SHOOT))
         {
@@ -340,7 +344,7 @@ void tick_engine(struct Engine* engine)
             v2 vel = normalize_or_v2(sub_v2(cursor_pos, player_pos), zero_v2());
             vel = scale_v2(vel, 200.0f);
 
-            const u32 num = prev_game_state->num_bullets;
+            const u32 num = next_game_state->num_bullets;
             ASSERT(num < MAX_BULLETS, "Bullet overflow.");
             next_game_state->bullet_vel_x[num] = vel.x;
             next_game_state->bullet_vel_y[num] = vel.y;
