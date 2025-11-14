@@ -342,7 +342,7 @@ void tick_engine(struct Engine* engine)
             const v2 cursor_pos = make_v2(player_input->cursor_pos_x, player_input->cursor_pos_y);
 
             v2 vel = normalize_or_v2(sub_v2(cursor_pos, player_pos), zero_v2());
-            vel = scale_v2(vel, 200.0f);
+            vel = scale_v2(vel, 400.0f);
 
             const u32 num = next_game_state->num_bullets;
             ASSERT(num < MAX_BULLETS, "Bullet overflow.");

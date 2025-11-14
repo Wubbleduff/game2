@@ -15,6 +15,7 @@ enum ShaderType
     SHADER_BASIC,
     SHADER_BASIC_COLOR,
     SHADER_CIRCLE_BASIC_COLOR,
+    SHADER_LINE_BASIC_COLOR,
     
     NUM_SHADER_TYPE
 };
@@ -73,6 +74,22 @@ struct RenderWorldCircleData
     f32 color_a[MAX_CIRCLES];
 };
 
+#define MAX_LINES 1024
+struct RenderWorldLineData
+{
+    u32 num;
+    f32 start_pos_x[MAX_LINES];
+    f32 start_pos_y[MAX_LINES];
+    f32 end_pos_x[MAX_LINES];
+    f32 end_pos_y[MAX_LINES];
+    f32 pos_z[MAX_LINES];
+    f32 width[MAX_LINES];
+    f32 color_r[MAX_CIRCLES];
+    f32 color_g[MAX_CIRCLES];
+    f32 color_b[MAX_CIRCLES];
+    f32 color_a[MAX_CIRCLES];
+};
+
 struct PlatformWin32Render
 {
     ID3D11Device* device;
@@ -94,6 +111,7 @@ struct PlatformWin32Render
 
     struct RenderWorldQuadData world_quads;
     struct RenderWorldCircleData world_circles;
+    struct RenderWorldLineData world_lines;
 };
 
 struct PlatformWin32Render* platform_win32_get_render();
