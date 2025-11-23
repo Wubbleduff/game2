@@ -28,5 +28,7 @@ struct GameState
     f32 bullet_vel_y[MAX_BULLETS];
     f32 bullet_pos_x[MAX_BULLETS];
     f32 bullet_pos_y[MAX_BULLETS];
+    f32 bullet_prev_pos_x[MAX_BULLETS];
+    f32 bullet_prev_pos_y[MAX_BULLETS];
     u8 bullet_team_id[MAX_BULLETS];
 };

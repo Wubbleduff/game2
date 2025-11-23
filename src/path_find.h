@@ -10,12 +10,13 @@ struct PathFind
     // 256x256 grid pathfind
 
     // Bitarray of valid cells.
-    u8 grid[256 * 256 / 8];
-    f32 grid_dist[256 * 256];
+    u8 grid[256 * 256 / 8 + 4];
+    u32 grid_dist[256 * 256];
     u16 grid_prev[256 * 256];
 
     u32 num_open_list;
-    u16 open_list[65536];
+    u16 open_list[65536 + 8];
+    u32 open_list_f_dist[65536 + 8];
 };
 
 struct Level;

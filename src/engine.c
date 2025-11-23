@@ -7,6 +7,8 @@
 
 #include "level0.h"
 
+#include "debug_draw.h"
+
 
 static void init_game_state(struct GameState* game_state)
 {
@@ -52,7 +54,6 @@ static void init_game_state(struct GameState* game_state)
 
 static void update_physics(
     struct GameState* game_state,
-    const struct GameState* prev_game_state,
     const struct GameInput* game_input)
 {
     const u32 num_iterations = 16;
@@ -60,22 +61,14 @@ static void update_physics(
     const f32 max_accel = 4000.0f / (f32)num_iterations;
     const f32 drag = -250.0f / (f32)num_iterations;
 
-    const u32 num_players = prev_game_state->num_players;
-    COPY(game_state->player_vel_x, prev_game_state->player_vel_x, num_players);
-    COPY(game_state->player_vel_y, prev_game_state->player_vel_y, num_players);
-    COPY(game_state->player_pos_x, prev_game_state->player_pos_x, num_players);
-    COPY(game_state->player_pos_y, prev_game_state->player_pos_y, num_players);
+    const u32 num_players = game_state->num_players;
     const f32 player_radius = 0.5f;
     f32* player_vel_x = game_state->player_vel_x;
     f32* player_vel_y = game_state->player_vel_y;
     f32* player_pos_x = game_state->player_pos_x;
     f32* player_pos_y = game_state->player_pos_y;
 
-    const u32 num_bullets = prev_game_state->num_bullets;
-    COPY(game_state->bullet_vel_x, prev_game_state->bullet_vel_x, num_bullets);
-    COPY(game_state->bullet_vel_y, prev_game_state->bullet_vel_y, num_bullets);
-    COPY(game_state->bullet_pos_x, prev_game_state->bullet_pos_x, num_bullets);
-    COPY(game_state->bullet_pos_y, prev_game_state->bullet_pos_y, num_bullets);
+    const u32 num_bullets = game_state->num_bullets;
     f32* bullet_vel_x = game_state->bullet_vel_x;
     f32* bullet_vel_y = game_state->bullet_vel_y;
     f32* bullet_pos_x = game_state->bullet_pos_x;
@@ -152,7 +145,7 @@ static void update_physics(
 
             v2 player_vel = make_v2(player_vel_x[i], player_vel_y[i]);
 
-            ASSERT(prev_game_state->cur_level == 0, "TODO levels");
+            ASSERT(game_state->cur_level == 0, "TODO levels");
             const struct Level* level = &LEVEL0;
             for(u32 i_wall = 0; i_wall < level->num_walls; i_wall++)
             {
@@ -185,12 +178,34 @@ static void update_physics(
             player_pos_x[i] += player_vel_x[i] * sub_dt;
             player_pos_y[i] += player_vel_y[i] * sub_dt;
         }
-        for(u32 i = 0; i < game_state->num_bullets; i++)
+        for(u32 i = 0; i < num_bullets; i++)
         {
             bullet_pos_x[i] += bullet_vel_x[i] * sub_dt;
             bullet_pos_y[i] += bullet_vel_y[i] * sub_dt;
         }
     }
+}
+
+static void add_bullet(
+    struct GameState* game_state,
+    const f32 vel_x,
+    const f32 vel_y,
+    const f32 pos_x,
+    const f32 pos_y,
+    const f32 prev_pos_x,
+    const f32 prev_pos_y,
+    const u8 team_id)
+{
+    const u32 num = game_state->num_bullets;
+    ASSERT(num < MAX_BULLETS, "Bullet overflow.");
+    game_state->bullet_vel_x[num] = vel_x;
+    game_state->bullet_vel_y[num] = vel_y;
+    game_state->bullet_pos_x[num] = pos_x;
+    game_state->bullet_pos_y[num] = pos_y;
+    game_state->bullet_prev_pos_x[num] = prev_pos_x;
+    game_state->bullet_prev_pos_y[num] = prev_pos_y;
+    game_state->bullet_team_id[num] = team_id;
+    game_state->num_bullets = num + 1;
 }
 
 
@@ -246,6 +261,14 @@ void tick_engine(struct Engine* engine)
         prev_game_state->cam_aspect_ratio,
         prev_game_state->player_pos_x[0],
         prev_game_state->player_pos_y[0]);
+
+    {
+        const u32 num_players = prev_game_state->num_players;
+        COPY(next_game_state->player_vel_x, prev_game_state->player_vel_x, num_players);
+        COPY(next_game_state->player_vel_y, prev_game_state->player_vel_y, num_players);
+        COPY(next_game_state->player_pos_x, prev_game_state->player_pos_x, num_players);
+        COPY(next_game_state->player_pos_y, prev_game_state->player_pos_y, num_players);
+    }
 
     for(u64 i = 1; i < game_input.num_players; i++)
     {
@@ -311,7 +334,7 @@ void tick_engine(struct Engine* engine)
         {
             for(u64 i = 0; i < num_path; i++)
             {
-                platform_win32_add_world_quad(
+                debug_draw_add_world_quad(
                     (f32)path_x[i] + 0.5f,
                     (f32)path_y[i] + 0.5f,
                     0.5f,
@@ -322,18 +345,22 @@ void tick_engine(struct Engine* engine)
                     0.0f,
                     1.0f);
             }
-                
         }
     }
     #endif
 
     {
-        next_game_state->num_bullets = prev_game_state->num_bullets;
-        COPY(next_game_state->bullet_vel_x, prev_game_state->bullet_vel_x, prev_game_state->num_bullets);
-        COPY(next_game_state->bullet_vel_y, prev_game_state->bullet_vel_y, prev_game_state->num_bullets);
-        COPY(next_game_state->bullet_pos_x, prev_game_state->bullet_pos_x, prev_game_state->num_bullets);
-        COPY(next_game_state->bullet_pos_y, prev_game_state->bullet_pos_y, prev_game_state->num_bullets);
-        COPY(next_game_state->bullet_team_id, prev_game_state->bullet_team_id, prev_game_state->num_bullets);
+        const u32 num_bullets = prev_game_state->num_bullets;
+        COPY(next_game_state->bullet_vel_x, prev_game_state->bullet_vel_x, num_bullets);
+        COPY(next_game_state->bullet_vel_y, prev_game_state->bullet_vel_y, num_bullets);
+        COPY(next_game_state->bullet_pos_x, prev_game_state->bullet_pos_x, num_bullets);
+        COPY(next_game_state->bullet_pos_y, prev_game_state->bullet_pos_y, num_bullets);
+        COPY(next_game_state->bullet_team_id, prev_game_state->bullet_team_id, num_bullets);
+
+        COPY(next_game_state->bullet_prev_pos_x, prev_game_state->bullet_pos_x, num_bullets);
+        COPY(next_game_state->bullet_prev_pos_y, prev_game_state->bullet_pos_y, num_bullets);
+
+        next_game_state->num_bullets = num_bullets;
         
         const struct PlayerInput* player_input = &game_input.player_input[0];
         if(player_input_get_bool(player_input, PLAYER_INPUT_SHOOT))
@@ -344,18 +371,19 @@ void tick_engine(struct Engine* engine)
             v2 vel = normalize_or_v2(sub_v2(cursor_pos, player_pos), zero_v2());
             vel = scale_v2(vel, 400.0f);
 
-            const u32 num = next_game_state->num_bullets;
-            ASSERT(num < MAX_BULLETS, "Bullet overflow.");
-            next_game_state->bullet_vel_x[num] = vel.x;
-            next_game_state->bullet_vel_y[num] = vel.y;
-            next_game_state->bullet_pos_x[num] = player_pos.x;
-            next_game_state->bullet_pos_y[num] = player_pos.y;
-            next_game_state->bullet_team_id[num] = 0;
-            next_game_state->num_bullets++;
+            add_bullet(
+                next_game_state,
+                vel.x,
+                vel.y,
+                player_pos.x,
+                player_pos.y,
+                player_pos.x,
+                player_pos.y,
+                0);
         }
     }
 
-    update_physics(next_game_state, prev_game_state, &game_input);
+    update_physics(next_game_state, &game_input);
 
     ASSERT(next_game_state->num_players > 0, "Must have at least 1 player");
     next_game_state->cam_pos_x = next_game_state->player_pos_x[0];

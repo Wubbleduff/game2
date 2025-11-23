@@ -2,6 +2,7 @@
 #include "math.h"
 #include "engine.h"
 #include "platform.h"
+#include "debug_draw.h"
 
 // TODO: remove
 #include "level0.h"
@@ -470,6 +471,34 @@ void platform_win32_add_world_line(
     data->num++;
 }
 
+void debug_draw_add_world_quad(
+    f32 pos_x,
+    f32 pos_y,
+    f32 pos_z,
+    f32 width,
+    f32 height,
+    f32 color_r,
+    f32 color_g,
+    f32 color_b,
+    f32 color_a)
+{
+    struct PlatformWin32Render* win32_render = platform_win32_get_render();
+
+    struct RenderWorldQuadData* data = &win32_render->world_quads;
+    const u32 num = data->num;
+    ASSERT(num < ARRAY_COUNT(data->pos_x), "'platform_win32_add_world_quad' overflow %u", ARRAY_COUNT(data->pos_x));
+    data->pos_x[num] = pos_x;
+    data->pos_y[num] = pos_y;
+    data->pos_z[num] = pos_z;
+    data->width[num] = width;
+    data->height[num] = height;
+    data->color_r[num] = color_r;
+    data->color_g[num] = color_g;
+    data->color_b[num] = color_b;
+    data->color_a[num] = color_a;
+    data->num++;
+}
+
 void platform_win32_render(struct Engine* engine)
 {
     struct PlatformWin32Core* win32_core = platform_win32_get_core();    
@@ -477,7 +506,7 @@ void platform_win32_render(struct Engine* engine)
 
     // Flip prev and next becuse 'tick_engine' updated which is whic.
     struct GameState* next_game_state = &engine->game_states[(engine->cur_game_state_idx + 1) & 1];
-    struct GameState* prev_game_state = &engine->game_states[engine->cur_game_state_idx];
+    //struct GameState* prev_game_state = &engine->game_states[engine->cur_game_state_idx];
 
     ID3D11DeviceContext* const device_context = win32_render->device_context;
 
@@ -603,20 +632,23 @@ void platform_win32_render(struct Engine* engine)
         );
     }
 
-
-    // TODO(mfritz): Handle adding and deleting bullets.
-    //               Handle bullets having no previous game state.
     for(u64 i = 0; i < next_game_state->num_bullets; i++)
     {
         v4 color =
             next_game_state->bullet_team_id[i] == 0
             ? make_v4(0.0f, 0.8f, 1.0f, 1.0f)
             : make_v4(1.0f, 0.4f, 0.0f, 1.0f);
+
+        const f32 prev_pos_x = next_game_state->bullet_prev_pos_x[i];
+        const f32 prev_pos_y = next_game_state->bullet_prev_pos_y[i];
+        const f32 next_pos_x = next_game_state->bullet_pos_x[i];
+        const f32 next_pos_y = next_game_state->bullet_pos_y[i];
+        
         platform_win32_add_world_line(
-            prev_game_state->bullet_pos_x[i],
-            prev_game_state->bullet_pos_y[i],
-            next_game_state->bullet_pos_x[i],
-            next_game_state->bullet_pos_y[i],
+            prev_pos_x,
+            prev_pos_y,
+            next_pos_x,
+            next_pos_y,
             0.5f,
             0.2f,
             color.x,
