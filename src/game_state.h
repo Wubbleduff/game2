@@ -20,6 +20,7 @@ struct GameState
     f32 player_vel_y[MAX_PLAYERS];
     f32 player_pos_x[MAX_PLAYERS];
     f32 player_pos_y[MAX_PLAYERS];
+    s32 player_health[MAX_PLAYERS];
     u8 player_type[MAX_PLAYERS];
     u8 player_team_id[MAX_PLAYERS];
 

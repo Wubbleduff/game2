@@ -31,6 +31,12 @@ void update_npc(
         npc->target_pos_y = (f32)(rand_u32(player_id + 277 + (u32)frame_num) % 64) - 32.0f;
     }
 
+    if(game_state->player_health[player_id] == 0)
+    {
+        npc->target_pos_x = 0.0f;
+        npc->target_pos_y = 0.0f;
+    }
+
     const v2 player_pos = make_v2(game_state->player_pos_x[player_id], game_state->player_pos_y[player_id]);
 
     s32 start_x = (s32)round_neg_inf(player_pos.x);

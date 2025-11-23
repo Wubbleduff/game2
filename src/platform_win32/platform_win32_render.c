@@ -620,6 +620,12 @@ void platform_win32_render(struct Engine* engine)
             next_game_state->player_team_id[i] == 0
             ? make_v4(0.0f, 0.8f, 1.0f, 1.0f)
             : make_v4(1.0f, 0.4f, 0.0f, 1.0f);
+
+        color =
+            next_game_state->player_health[i] == 0
+            ? scale_v4(color, 0.3f)
+            : color;
+
         platform_win32_add_world_circle(
             next_game_state->player_pos_x[i],
             next_game_state->player_pos_y[i],

@@ -10,6 +10,54 @@
 #include "debug_draw.h"
 
 
+
+// NOTE:
+// This will consider overlapping points and line segments as intersecting.
+static inline u8 intersect_line_segments_2d(
+    const v2 a0,
+    const v2 a1,
+    const v2 b0,
+    const v2 b1)
+{
+    u8 result = 1;
+
+    {
+        const v2 p0 = a0;
+        const v2 p1 = a1;
+        const v2 q0 = b0;
+        const v2 q1 = b1;
+
+        const v2 p01 = sub_v2(p1, p0);
+        const v2 n = make_v2(-p01.y, p01.x);
+
+        const f32 d_q0 = dot_v2(sub_v2(q0, p0), n);
+        const f32 d_q1 = dot_v2(sub_v2(q1, p0), n);
+
+        result &= sign_f32(d_q0) ^ sign_f32(d_q1);
+        result |= d_q0 == 0.0f;
+    }
+
+    {
+        const v2 p0 = b0;
+        const v2 p1 = b1;
+        const v2 q0 = a0;
+        const v2 q1 = a1;
+
+        const v2 p01 = sub_v2(p1, p0);
+        const v2 n = make_v2(-p01.y, p01.x);
+
+        const f32 d_q0 = dot_v2(sub_v2(q0, p0), n);
+        const f32 d_q1 = dot_v2(sub_v2(q1, p0), n);
+
+        result &= sign_f32(d_q0) ^ sign_f32(d_q1);
+        result |= d_q0 == 0.0f;
+    }
+
+    return result;
+}
+
+
+
 static void init_game_state(struct GameState* game_state)
 {
     game_state->cam_pos_x = 0.0f;
@@ -29,6 +77,7 @@ static void init_game_state(struct GameState* game_state)
             game_state->player_vel_y[num] = 0.0f;
             game_state->player_pos_x[num] = pos.x;
             game_state->player_pos_y[num] = pos.y;
+            game_state->player_health[num] = 100;
             game_state->player_type[num] = 0;
             game_state->player_team_id[num] = 0;
             num++;
@@ -42,6 +91,7 @@ static void init_game_state(struct GameState* game_state)
             game_state->player_vel_y[num] = 0.0f;
             game_state->player_pos_x[num] = pos.x;
             game_state->player_pos_y[num] = pos.y;
+            game_state->player_health[num] = 100;
             game_state->player_type[num] = 0;
             game_state->player_team_id[num] = 1;
             num++;
@@ -54,6 +104,7 @@ static void init_game_state(struct GameState* game_state)
 
 static void update_physics(
     struct GameState* game_state,
+    u8* bullet_is_dead,
     const struct GameInput* game_input)
 {
     const u32 num_iterations = 16;
@@ -67,12 +118,20 @@ static void update_physics(
     f32* player_vel_y = game_state->player_vel_y;
     f32* player_pos_x = game_state->player_pos_x;
     f32* player_pos_y = game_state->player_pos_y;
+    s32* player_health = game_state->player_health;
+    u8* player_team_id = game_state->player_team_id;
 
     const u32 num_bullets = game_state->num_bullets;
     f32* bullet_vel_x = game_state->bullet_vel_x;
     f32* bullet_vel_y = game_state->bullet_vel_y;
     f32* bullet_pos_x = game_state->bullet_pos_x;
     f32* bullet_pos_y = game_state->bullet_pos_y;
+    f32* bullet_prev_pos_x = game_state->bullet_prev_pos_x;
+    f32* bullet_prev_pos_y = game_state->bullet_prev_pos_y;
+    u8* bullet_team_id = game_state->bullet_team_id;
+
+    ASSERT(game_state->cur_level == 0, "TODO levels");
+    const struct Level* level = &LEVEL0;
 
     // Iteratively update physics.
     for(u32 iteration = 0; iteration < num_iterations; iteration++)
@@ -80,11 +139,11 @@ static void update_physics(
         // Note: The order with which we process kinematics and collisions is important.
 
         // 1. Integrate forces into player velocity.
-        for(u32 i = 0; i < num_players; i++)
+        for(u32 player_id = 0; player_id < num_players; player_id++)
         {
-            const struct PlayerInput* player_input = &game_input->player_input[i];
+            const struct PlayerInput* player_input = &game_input->player_input[player_id];
             const v2 move_dir = make_v2(player_input->move_x, player_input->move_y);
-            v2 player_vel = make_v2(player_vel_x[i], player_vel_y[i]);
+            v2 player_vel = make_v2(player_vel_x[player_id], player_vel_y[player_id]);
 
             v2 accel = zero_v2();
 
@@ -97,11 +156,66 @@ static void update_physics(
             // v' = a*t + v
             player_vel = add_v2(player_vel, scale_v2(accel, sub_dt));
 
-            player_vel_x[i] = player_vel.x;
-            player_vel_y[i] = player_vel.y;
+            player_vel_x[player_id] = player_vel.x;
+            player_vel_y[player_id] = player_vel.y;
+        }
+        
+        // 2. Resolve bullet-wall collisions.
+        for(u32 i_bullet = 0; i_bullet < num_bullets; i_bullet++)
+        {
+            for(u32 i_wall = 0; i_wall < level->num_walls; i_wall++)
+            {
+                const v2 bullet_prev_pos = make_v2(bullet_prev_pos_x[i_bullet], bullet_prev_pos_y[i_bullet]);
+                const v2 bullet_pos = make_v2(bullet_pos_x[i_bullet], bullet_pos_y[i_bullet]);
+        
+                const struct LevelWall* wall = &level->walls[i_wall];
+                const v2 wall_bl = make_v2((f32)wall->x,                  (f32)wall->y);
+                const v2 wall_br = make_v2((f32)(wall->x + (s32)wall->w), (f32)wall->y);
+                const v2 wall_tl = make_v2((f32)wall->x,                  (f32)(wall->y + (s32)wall->h));
+                const v2 wall_tr = make_v2((f32)(wall->x + (s32)wall->w), (f32)(wall->y + (s32)wall->h));
+        
+                u32 hit = 0;
+        
+                hit |= intersect_line_segments_2d(bullet_prev_pos, bullet_pos, wall_bl, wall_br);
+                hit |= intersect_line_segments_2d(bullet_prev_pos, bullet_pos, wall_br, wall_tr);
+                hit |= intersect_line_segments_2d(bullet_prev_pos, bullet_pos, wall_tr, wall_tl);
+                hit |= intersect_line_segments_2d(bullet_prev_pos, bullet_pos, wall_tl, wall_bl);
+        
+                hit &= !(bullet_is_dead[i_bullet]);
+        
+                if(hit)
+                {
+                    bullet_is_dead[i_bullet] = 1;
+                }
+            }
         }
 
-        // 2. Resolve player-player collisions.
+        // 3. Resolve bullet-player collisions.
+        for(u32 i_bullet = 0; i_bullet < num_bullets; i_bullet++)
+        {
+            for(u32 player_id = 0; player_id < num_players; player_id++)
+            {
+                const v2 bullet_prev_pos = make_v2(bullet_prev_pos_x[i_bullet], bullet_prev_pos_y[i_bullet]);
+                const v2 bullet_pos = make_v2(bullet_pos_x[i_bullet], bullet_pos_y[i_bullet]);
+
+                const v2 player_pos = make_v2(player_pos_x[player_id], player_pos_y[player_id]);
+
+                u32 hit = 1;
+                f32 dist = distance_point_line_segment_2d(player_pos, bullet_prev_pos, bullet_pos);
+                hit &= dist < player_radius;
+                hit &= bullet_team_id[i_bullet] != player_team_id[player_id];
+                hit &= !(bullet_is_dead[i_bullet]);
+                if(hit)
+                {
+                    player_vel_x[player_id] += bullet_vel_x[i_bullet] * 0.1f;
+                    player_vel_y[player_id] += bullet_vel_y[i_bullet] * 0.1f;
+                    player_health[player_id] = max_s32(player_health[player_id] - 10, 0);
+                    bullet_is_dead[i_bullet] = 1;
+                }
+            }
+        }
+
+        // 4. Resolve player-player collisions.
         for(u32 a_id = 0; a_id < num_players; a_id++)
         {
             const v2 a_pos = make_v2(player_pos_x[a_id], player_pos_y[a_id]);
@@ -136,24 +250,21 @@ static void update_physics(
             player_vel_y[a_id] = a_vel.y;
         }
 
-        // 3. Resolve player-wall collisions.
+        // 5. Resolve player-wall collisions.
         //    Do this after all player-player collisions so it's harder for players to move into walls.
-        for(u32 i = 0; i < num_players; i++)
+        for(u32 player_id = 0; player_id < num_players; player_id++)
         {
-            const v2 player_pos = make_v2(player_pos_x[i], player_pos_y[i]);
+            const v2 player_pos = make_v2(player_pos_x[player_id], player_pos_y[player_id]);
             const f32 player_r = player_radius;
+            v2 player_vel = make_v2(player_vel_x[player_id], player_vel_y[player_id]);
 
-            v2 player_vel = make_v2(player_vel_x[i], player_vel_y[i]);
-
-            ASSERT(game_state->cur_level == 0, "TODO levels");
-            const struct Level* level = &LEVEL0;
             for(u32 i_wall = 0; i_wall < level->num_walls; i_wall++)
             {
                 const struct LevelWall* wall = &level->walls[i_wall];
                 const f32 wall_left = (f32)wall->x;
-                const f32 wall_right = (f32)wall->x + (f32)wall->w;
+                const f32 wall_right = (f32)(wall->x + (s32)wall->w);
                 const f32 wall_bottom = (f32)wall->y;
-                const f32 wall_top = (f32)wall->y + (f32)wall->h;
+                const f32 wall_top = (f32)(wall->y + (s32)wall->h);
 
                 v2 clamped_pos = player_pos;
                 clamped_pos.x = clamp_f32(player_pos.x, wall_left, wall_right);
@@ -161,29 +272,59 @@ static void update_physics(
 
                 const v2 n = sub_v2(player_pos, clamped_pos);
                 if(dot_v2(n, n) < sq_f32(player_r) &&
-                    dot_v2(n, player_vel) < 0.0f)
+                   dot_v2(n, player_vel) < 0.0f)
                 {
                     const f32 j = dot_v2(scale_v2(player_vel, -1.0f), n) / dot_v2(n, n);
                     player_vel = add_v2(player_vel, scale_v2(n, j));
                 }
             }
 
-            player_vel_x[i] = player_vel.x;
-            player_vel_y[i] = player_vel.y;
+            player_vel_x[player_id] = player_vel.x;
+            player_vel_y[player_id] = player_vel.y;
         }
 
-        // 4. Integrate velocity into position.
-        for(u32 i = 0; i < num_players; i++)
+        // 6. Integrate velocity into position.
+        for(u32 player_id = 0; player_id < num_players; player_id++)
         {
-            player_pos_x[i] += player_vel_x[i] * sub_dt;
-            player_pos_y[i] += player_vel_y[i] * sub_dt;
+            player_pos_x[player_id] += player_vel_x[player_id] * sub_dt;
+            player_pos_y[player_id] += player_vel_y[player_id] * sub_dt;
+
+            ASSERT(player_pos_x[player_id] >= -1000.0f, "Bullet out of bounds.");
+            ASSERT(player_pos_x[player_id] < 1000.0f, "Bullet out of bounds.");
+            ASSERT(player_pos_y[player_id] >= -1000.0f, "Bullet out of bounds.");
+            ASSERT(player_pos_y[player_id] < 1000.0f, "Bullet out of bounds.");
         }
         for(u32 i = 0; i < num_bullets; i++)
         {
             bullet_pos_x[i] += bullet_vel_x[i] * sub_dt;
             bullet_pos_y[i] += bullet_vel_y[i] * sub_dt;
+
+            ASSERT(bullet_pos_x[i] >= -1000.0f, "Bullet out of bounds.");
+            ASSERT(bullet_pos_x[i] < 1000.0f, "Bullet out of bounds.");
+            ASSERT(bullet_pos_y[i] >= -1000.0f, "Bullet out of bounds.");
+            ASSERT(bullet_pos_y[i] < 1000.0f, "Bullet out of bounds.");
         }
     }
+}
+
+static void assign_bullet(
+    struct GameState* game_state,
+    const u64 idx,
+    const f32 vel_x,
+    const f32 vel_y,
+    const f32 pos_x,
+    const f32 pos_y,
+    const f32 prev_pos_x,
+    const f32 prev_pos_y,
+    const u8 team_id)
+{
+    game_state->bullet_vel_x[idx] = vel_x;
+    game_state->bullet_vel_y[idx] = vel_y;
+    game_state->bullet_pos_x[idx] = pos_x;
+    game_state->bullet_pos_y[idx] = pos_y;
+    game_state->bullet_prev_pos_x[idx] = prev_pos_x;
+    game_state->bullet_prev_pos_y[idx] = prev_pos_y;
+    game_state->bullet_team_id[idx] = team_id;
 }
 
 static void add_bullet(
@@ -198,13 +339,17 @@ static void add_bullet(
 {
     const u32 num = game_state->num_bullets;
     ASSERT(num < MAX_BULLETS, "Bullet overflow.");
-    game_state->bullet_vel_x[num] = vel_x;
-    game_state->bullet_vel_y[num] = vel_y;
-    game_state->bullet_pos_x[num] = pos_x;
-    game_state->bullet_pos_y[num] = pos_y;
-    game_state->bullet_prev_pos_x[num] = prev_pos_x;
-    game_state->bullet_prev_pos_y[num] = prev_pos_y;
-    game_state->bullet_team_id[num] = team_id;
+    assign_bullet(
+        game_state,
+        num,
+        vel_x,
+        vel_y,
+        pos_x,
+        pos_y,
+        prev_pos_x,
+        prev_pos_y,
+        team_id
+    );
     game_state->num_bullets = num + 1;
 }
 
@@ -268,6 +413,8 @@ void tick_engine(struct Engine* engine)
         COPY(next_game_state->player_vel_y, prev_game_state->player_vel_y, num_players);
         COPY(next_game_state->player_pos_x, prev_game_state->player_pos_x, num_players);
         COPY(next_game_state->player_pos_y, prev_game_state->player_pos_y, num_players);
+
+        COPY(next_game_state->player_health, prev_game_state->player_health, num_players);
     }
 
     for(u64 i = 1; i < game_input.num_players; i++)
@@ -349,6 +496,7 @@ void tick_engine(struct Engine* engine)
     }
     #endif
 
+    u8 bullet_is_dead[MAX_BULLETS] = {};
     {
         const u32 num_bullets = prev_game_state->num_bullets;
         COPY(next_game_state->bullet_vel_x, prev_game_state->bullet_vel_x, num_bullets);
@@ -383,7 +531,32 @@ void tick_engine(struct Engine* engine)
         }
     }
 
-    update_physics(next_game_state, &game_input);
+    update_physics(next_game_state, bullet_is_dead, &game_input);
+
+    {
+        // Remove dead bullets.
+        const u64 num_bullets = next_game_state->num_bullets;
+        u64 i_dst = 0;
+        for(u64 i_src = 0; i_src < num_bullets; i_src++)
+        {
+            if(!bullet_is_dead[i_src])
+            {
+                assign_bullet(
+                    next_game_state,
+                    i_dst,
+                    next_game_state->bullet_vel_x[i_src],
+                    next_game_state->bullet_vel_y[i_src],
+                    next_game_state->bullet_pos_x[i_src],
+                    next_game_state->bullet_pos_y[i_src],
+                    next_game_state->bullet_prev_pos_x[i_src],
+                    next_game_state->bullet_prev_pos_y[i_src],
+                    next_game_state->bullet_team_id[i_src]
+                );
+                i_dst++;
+            }
+        }
+        next_game_state->num_bullets = (u32)i_dst;
+    }
 
     ASSERT(next_game_state->num_players > 0, "Must have at least 1 player");
     next_game_state->cam_pos_x = next_game_state->player_pos_x[0];

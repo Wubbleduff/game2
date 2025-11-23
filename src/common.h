@@ -59,9 +59,17 @@ void *memset(void *dst, int c, size_t count);
         memcpy((DST), (SRC), sizeof((SRC)[0]) * (NUM)); \
     } while(0)
 
-#define ZERO_ARRAY(a) \
+#define ZERO_ARRAY(A) \
     do { \
-        memset((a), 0, sizeof(a)); \
+        memset((A), 0, sizeof(A)); \
+    } while(0)
+
+#define FILL_ARRAY(A, V)                        \
+    do {                                        \
+        for(u64 i = 0; i < ARRAY_COUNT(A); i++) \
+        {                                       \
+            (A)[i] = (V);                       \
+        }                                       \
     } while(0)
 
 #define KB(N) ((N) * 1024ULL)
@@ -90,6 +98,12 @@ static inline f32 nan_f32(void)
 static inline u32 is_nan(f32 a)
 {
     return a != a;
+}
+
+static inline u8 sign_f32(f32 a)
+{
+    u32 result = f32_bits_as_u32(a);
+    return (u8)(result >> 31);
 }
 
 static inline u32 truncate_power_of_2_u32(const u32 a)

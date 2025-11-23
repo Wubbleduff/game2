@@ -514,3 +514,14 @@ inline u32 rand_u32(u32 n)
     return n;
 }
 
+// Distance from point 'p' to line segment from 'a' to 'b'.
+static inline f32 distance_point_line_segment_2d(const v2 p, const v2 a, const v2 b)
+{
+    const v2 ab = sub_v2(b, a);
+    const float d =
+        dot_v2(sub_v2(p, a), ab) /
+        dot_v2(ab, ab);
+    const v2 p_on_line = add_v2(a, scale_v2(ab, clamp_f32(d, 0.0f, 1.0f)));
+    return length_v2(sub_v2(p, p_on_line));
+}
+
