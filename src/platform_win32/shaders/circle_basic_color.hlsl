@@ -37,9 +37,12 @@ PS_INPUT vs(VS_INPUT input)
 
 float4 ps(PS_INPUT input) : SV_TARGET
 {
+    float3 result_color = input.color.xyz;
+
     if(length(input.model_pos) > 0.5f)
     {
         discard;
     }
-    return input.color;
+
+    return float4(result_color, 1.0);
 }

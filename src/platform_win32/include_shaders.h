@@ -1,3 +1,6 @@
+#include "platform_win32/shaders/generated/d3d11_vshader_fsq.h"
+#include "platform_win32/shaders/generated/d3d11_pshader_fsq.h"
+
 #include "platform_win32/shaders/generated/d3d11_vshader_basic.h"
 #include "platform_win32/shaders/generated/d3d11_pshader_basic.h"
 

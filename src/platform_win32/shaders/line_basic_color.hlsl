@@ -35,7 +35,7 @@ PS_INPUT vs(VS_INPUT input)
 
 float4 ps(PS_INPUT input) : SV_TARGET
 {
-    float3 result = input.color.xyz;
+    float3 result_color = input.color.xyz;
 
-    return float4(result, 1.0f);
+    return float4(result_color, 1.0f);
 }

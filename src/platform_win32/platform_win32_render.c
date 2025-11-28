@@ -20,6 +20,12 @@ struct Vertex
     f32 tex_coord[2];
 };
 
+struct FsqVertex
+{
+    f32 pos[2];
+    f32 tex_coord[2];
+};
+
 struct InstanceData
 {
     f32 xform[3][4];
@@ -197,11 +203,47 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
 
     {
         ID3D11Texture2D* back_buffer;
-        hr = IDXGISwapChain1_GetBuffer(win32_render->swap_chain, 0, &IID_ID3D11Texture2D, (void**)&back_buffer);
+        hr = IDXGISwapChain1_GetBuffer(win32_render->swap_chain, 0, &IID_ID3D11Texture2D, (void* *)&back_buffer);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
         hr = ID3D11Device_CreateRenderTargetView(win32_render->device, (ID3D11Resource*)back_buffer, NULL, &win32_render->render_target_view);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
-        hr = ID3D11Texture2D_Release(back_buffer);
+    }
+
+    {
+        D3D11_TEXTURE2D_DESC fb_desc =
+        {
+            .Width = win32_core->client_width,
+            .Height = win32_core->client_height,
+            .MipLevels = 1,
+            .ArraySize = 1,
+            .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+            .SampleDesc = { 1, 0 },
+            .Usage = D3D11_USAGE_DEFAULT,
+            .BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+        };
+        ID3D11Texture2D* fb_texture;
+        hr = ID3D11Device_CreateTexture2D(win32_render->device, &fb_desc, NULL, &fb_texture);
+        ASSERT(SUCCEEDED(hr), "d3d11 error.");
+
+        D3D11_RENDER_TARGET_VIEW_DESC render_target_view_desc =
+        {
+            .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+            .ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D,
+            .Texture2D = {
+                .MipSlice = 0,
+            },
+        };
+        hr = ID3D11Device_CreateRenderTargetView(win32_render->device, (ID3D11Resource*)fb_texture, &render_target_view_desc, &win32_render->fsq_render_target_view);
+        ASSERT(SUCCEEDED(hr), "d3d11 error.");
+        hr = ID3D11Texture2D_Release(fb_texture);
+        ASSERT(SUCCEEDED(hr), "d3d11 error.");
+
+        hr = ID3D11Device_CreateShaderResourceView(
+            win32_render->device,
+            (ID3D11Resource*)fb_texture,
+            NULL,
+            &win32_render->fb_texture_view
+        );
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
         D3D11_TEXTURE2D_DESC depth_desc =
@@ -215,7 +257,6 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .Usage = D3D11_USAGE_DEFAULT,
             .BindFlags = D3D11_BIND_DEPTH_STENCIL,
         };
-
         ID3D11Texture2D* depth;
         hr = ID3D11Device_CreateTexture2D(win32_render->device, &depth_desc, NULL, &depth);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
@@ -241,34 +282,114 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
 
     const u32 static_instance_data_buffer_size = sizeof(struct InstanceData) * MAX_INSTANCES;
 
-    const struct Vertex quad_verts[] = {
-        {
-            .pos = {-0.5f, -0.5f,}
-        },
-        {
-            .pos = {0.5f, -0.5f,}
-        },
-        {
-            .pos = {-0.5f, 0.5f,}
-        },
-        {
-            .pos = {0.5f, 0.5f,}
-        },
-    };
-    const u32 quad_indices[] = {
-        0, 1, 2,
-        2, 1, 3,
-    };
-    create_static_mesh_data(
-        &win32_render->static_meshes[STATIC_MESH_QUAD],
-        win32_render->device,
-        sizeof(quad_verts),
-        quad_verts,
-        sizeof(quad_indices),
-        quad_indices,
-        ARRAY_COUNT(quad_indices),
-        static_instance_data_buffer_size
-    );
+    {
+        const struct Vertex quad_verts[] = {
+            {
+                .pos = { -0.5f, -0.5f, }
+            },
+            {
+                .pos = { 0.5f, -0.5f, }
+            },
+            {
+                .pos = { -0.5f, 0.5f, }
+            },
+            {
+                .pos = { 0.5f, 0.5f, }
+            },
+        };
+        const u32 quad_indices[] = {
+            0, 1, 2,
+            2, 1, 3,
+        };
+        create_static_mesh_data(
+            &win32_render->static_meshes[STATIC_MESH_QUAD],
+            win32_render->device,
+            sizeof(quad_verts),
+            quad_verts,
+            sizeof(quad_indices),
+            quad_indices,
+            ARRAY_COUNT(quad_indices),
+            static_instance_data_buffer_size
+        );
+    }
+
+    {
+        const struct Vertex fsq_quad_verts[] = {
+            {
+                .pos = { -1.0f, -1.0f, },
+                .tex_coord = { 0.0f, 1.0f, },
+            },
+            {
+                .pos = { 1.0f, -1.0f, },
+                .tex_coord = { 1.0f, 1.0f, },
+            },
+            {
+                .pos = { -1.0f, 1.0f, },
+                .tex_coord = { 0.0f, 0.0f, },
+            },
+            {
+                .pos = { 1.0f, 1.0f, },
+                .tex_coord = { 1.0f, 0.0f, },
+            },
+        };
+
+        D3D11_BUFFER_DESC buffer_desc = {
+            .ByteWidth = sizeof(fsq_quad_verts),
+            .Usage = D3D11_USAGE_IMMUTABLE,
+            .BindFlags = D3D11_BIND_VERTEX_BUFFER,
+        };
+        D3D11_SUBRESOURCE_DATA init_data = { .pSysMem = fsq_quad_verts };
+        hr = ID3D11Device_CreateBuffer(
+            win32_render->device,
+            &buffer_desc,
+            &init_data,
+            &win32_render->fsq_vertex_buffer
+        );
+        ASSERT(SUCCEEDED(hr), "d3d11 error.");
+    }
+
+    {
+        D3D11_SAMPLER_DESC sampler_desc = {
+            .Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+            .AddressU = D3D11_TEXTURE_ADDRESS_CLAMP,
+            .AddressV = D3D11_TEXTURE_ADDRESS_CLAMP,
+            .AddressW = D3D11_TEXTURE_ADDRESS_CLAMP,
+        };
+        hr = ID3D11Device_CreateSamplerState(
+            win32_render->device,
+            &sampler_desc,
+            &win32_render->fsq_sampler
+        );
+        ASSERT(SUCCEEDED(hr), "d3d11 error.");
+    }
+
+    {
+        D3D11_INPUT_ELEMENT_DESC layout_descs[] = {
+            {
+                .SemanticName = "POSITION",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
+                .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA,
+            },
+            {
+                .SemanticName = "TEXCOORD",
+                .SemanticIndex = 0,
+                .Format = DXGI_FORMAT_R32G32_FLOAT,
+                .InputSlot = 0,
+                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
+                .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA,
+            },
+        };
+        hr = ID3D11Device_CreateInputLayout(win32_render->device,
+                                       layout_descs,
+                                       ARRAY_COUNT(layout_descs),
+                                       d3d11_vshader_fsq,
+                                       sizeof(d3d11_vshader_fsq),
+                                       &win32_render->fsq_layout);
+        ASSERT(SUCCEEDED(hr), "d3d11 error.");
+    }
 
     {
         D3D11_INPUT_ELEMENT_DESC layout_descs[] = {
@@ -337,6 +458,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
     {
 
         const void* vertex_shader_byte_code[] = {
+            d3d11_vshader_fsq,
             d3d11_vshader_basic,
             d3d11_vshader_basic_color,
             d3d11_vshader_circle_basic_color,
@@ -344,6 +466,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         };
         _Static_assert(ARRAY_COUNT(vertex_shader_byte_code) == NUM_SHADER_TYPE, "Inconsistent size.");
         const u64 vertex_shader_byte_code_size[] = {
+            sizeof(d3d11_vshader_fsq),
             sizeof(d3d11_vshader_basic),
             sizeof(d3d11_vshader_basic_color),
             sizeof(d3d11_vshader_circle_basic_color),
@@ -351,6 +474,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         };
         _Static_assert(ARRAY_COUNT(vertex_shader_byte_code_size) == NUM_SHADER_TYPE, "Inconsistent size.");
         const void* pixel_shader_byte_code[] = {
+            d3d11_pshader_fsq,
             d3d11_pshader_basic,
             d3d11_pshader_basic_color,
             d3d11_pshader_circle_basic_color,
@@ -358,6 +482,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         };
         _Static_assert(ARRAY_COUNT(pixel_shader_byte_code) == NUM_SHADER_TYPE, "Inconsistent size.");
         const u64 pixel_shader_byte_code_size[] = {
+            sizeof(d3d11_pshader_fsq),
             sizeof(d3d11_pshader_basic),
             sizeof(d3d11_pshader_basic_color),
             sizeof(d3d11_pshader_circle_basic_color),
@@ -523,7 +648,7 @@ void platform_win32_render(struct Engine* engine)
 
     ID3D11DeviceContext_OMSetDepthStencilState(device_context, win32_render->depth_state, 0);
 
-    ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->render_target_view, win32_render->depth_stencil_view);
+    ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->fsq_render_target_view, win32_render->depth_stencil_view);
 
     m4x4 cam_proj_m4x4;
     {
@@ -585,45 +710,54 @@ void platform_win32_render(struct Engine* engine)
         }
     }
 
-    for(s64 x = -128; x < 128; x++)
     {
-        platform_win32_add_world_quad(
-            (f32)x,
-            0.0f,
-            0.99f,
-            0.05f,
-            256.0f,
-            0.5f,
-            0.5f,
-            0.5f,
-            1.0f
-        );
-    }
-    for(s64 y = -128; y < 128; y++)
-    {
-        platform_win32_add_world_quad(
-            0.0f,
-            (f32)y,
-            0.99f,
-            256.0f,
-            0.05f,
-            0.5f,
-            0.5f,
-            0.5f,
-            1.0f
-        );
+        v4 color = make_v4(0.05f, 0.05f, 0.05f, 1.0f);
+        for(s64 x = -128; x < 128; x++)
+        {
+            platform_win32_add_world_quad(
+                (f32)x,
+                0.0f,
+                0.99f,
+                0.05f,
+                256.0f,
+                color.x,
+                color.y,
+                color.z,
+                color.w
+            );
+        }
+        for(s64 y = -128; y < 128; y++)
+        {
+            platform_win32_add_world_quad(
+                0.0f,
+                (f32)y,
+                0.99f,
+                256.0f,
+                0.05f,
+                color.x,
+                color.y,
+                color.z,
+                color.w
+            );
+        }
     }
 
     for(u64 i = 0; i < next_game_state->num_players; i++)
     {
+        // v4 color =
+        //     next_game_state->player_team_id[i] == 0
+        //     ? make_v4(0.0f, 5.8f, 7.0f, 1.0f)
+        //     : make_v4(6.0f, 5.4f, 0.0f, 1.0f);
+
         v4 color =
             next_game_state->player_team_id[i] == 0
-            ? make_v4(0.0f, 0.8f, 1.0f, 1.0f)
-            : make_v4(1.0f, 0.4f, 0.0f, 1.0f);
+            ? make_v4(0.4f, 1.5f, 2.0f, 1.0f)
+            : make_v4(2.0f, 0.2f, 0.2f, 1.0f);
+
 
         color =
             next_game_state->player_health[i] == 0
-            ? scale_v4(color, 0.3f)
+            ? scale_v4(color, 0.025f)
             : color;
 
         platform_win32_add_world_circle(
@@ -642,8 +776,8 @@ void platform_win32_render(struct Engine* engine)
     {
         v4 color =
             next_game_state->bullet_team_id[i] == 0
-            ? make_v4(0.0f, 0.8f, 1.0f, 1.0f)
-            : make_v4(1.0f, 0.4f, 0.0f, 1.0f);
+            ? make_v4(0.4f, 1.5f, 2.0f, 1.0f)
+            : make_v4(2.0f, 0.2f, 0.2f, 1.0f);
 
         const f32 prev_pos_x = next_game_state->bullet_prev_pos_x[i];
         const f32 prev_pos_y = next_game_state->bullet_prev_pos_y[i];
@@ -668,6 +802,7 @@ void platform_win32_render(struct Engine* engine)
         ASSERT(next_game_state->cur_level == 0, "TODO levels");
 
         const struct Level* level = &LEVEL0;
+        const v4 color = make_v4(0.05f, 0.05f, 0.05f, 1.0f);
         for(u64 i = 0; i < level->num_walls; i++)
         {
             const struct LevelWall* wall = &level->walls[i];
@@ -677,10 +812,10 @@ void platform_win32_render(struct Engine* engine)
                 0.6f,
                 (f32)wall->w,
                 (f32)wall->h,
-                0.9f,
-                0.6f,
-                0.0f,
-                1.0f
+                color.x,
+                color.y,
+                color.z,
+                color.w
             );
         }
         
@@ -952,9 +1087,61 @@ void platform_win32_render(struct Engine* engine)
 
         win32_render->world_lines.num = 0;
     }
+
+    {
+        ID3D11Buffer* vertex_buffer = win32_render->fsq_vertex_buffer;
+        const enum ShaderType shader_type = SHADER_FSQ;
+
+        ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->render_target_view, win32_render->depth_stencil_view);
+
+        ID3D11DeviceContext_RSSetState(device_context, win32_render->rasterizer_states[RASTERIZER_STATE_SOLID]);
+     
+        ID3D11DeviceContext_VSSetShader(device_context, win32_render->vertex_shaders[shader_type], NULL, 0);
+        ID3D11DeviceContext_PSSetShader(device_context, win32_render->pixel_shaders[shader_type], NULL, 0);
+
+        ID3D11ShaderResourceView* shader_views[] = {
+            win32_render->fb_texture_view,
+        };
+        ID3D11DeviceContext_PSSetShaderResources(
+            device_context,
+            0,
+            1,
+            shader_views
+        );
+        ID3D11SamplerState* samplers[] = {
+            win32_render->fsq_sampler,
+        };
+        ID3D11DeviceContext_PSSetSamplers(
+            device_context,
+            0,
+            1,
+            samplers
+        );
+     
+        ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+        ID3D11DeviceContext_IASetInputLayout(device_context, win32_render->fsq_layout);
+        ID3D11Buffer* vertex_buffers[] = {
+            vertex_buffer,
+        };
+        const u32 strides[] = {
+            sizeof(struct FsqVertex),
+        };
+        const u32 offsets[] = {
+            0,
+        };
+        ID3D11DeviceContext_IASetVertexBuffers(
+            device_context,
+            0,
+            ARRAY_COUNT(vertex_buffers),
+            vertex_buffers,
+            strides,
+            offsets
+        );
+        ID3D11DeviceContext_Draw(device_context, 4, 0);
+    }
 }
 
-void platform_win32_swap_and_clear_buffer(u8 r, u8 g, u8 b)
+void platform_win32_swap_and_clear_buffer(f32 r, f32 g, f32 b)
 {
     struct PlatformWin32Render* win32_render = platform_win32_get_render();
 
@@ -970,15 +1157,13 @@ void platform_win32_swap_and_clear_buffer(u8 r, u8 g, u8 b)
         ASSERT(reason = S_OK, "fail");
     }
 
-    f32 clear_color[] =
-    {
-        (f32)r * (1.0f / 255.0f),
-        (f32)g * (1.0f / 255.0f),
-        (f32)b * (1.0f / 255.0f),
-        1.0f
-    };
+    f32 clear_color[] = { r, g, b, 1.0f };
+    f32 black[4] = {};
     ID3D11DeviceContext_ClearRenderTargetView(device_context,
                                               win32_render->render_target_view,
+                                              black);
+    ID3D11DeviceContext_ClearRenderTargetView(device_context,
+                                              win32_render->fsq_render_target_view,
                                               clear_color);
     ID3D11DeviceContext_ClearDepthStencilView(device_context,
                                               win32_render->depth_stencil_view,

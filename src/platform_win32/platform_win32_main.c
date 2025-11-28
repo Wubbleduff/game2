@@ -70,7 +70,7 @@ void WinMainCRTStartup()
 
         platform_win32_render(&g_main_memory->engine);
 
-        platform_win32_swap_and_clear_buffer(20, 0, 50);
+        platform_win32_swap_and_clear_buffer(0.008f, 0.0f, 0.12f);
 
         platform_win32_input_end_frame();
     }

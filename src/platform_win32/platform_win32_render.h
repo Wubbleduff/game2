@@ -12,6 +12,7 @@
 
 enum ShaderType
 {
+    SHADER_FSQ,
     SHADER_BASIC,
     SHADER_BASIC_COLOR,
     SHADER_CIRCLE_BASIC_COLOR,
@@ -109,6 +110,12 @@ struct PlatformWin32Render
 
     struct StaticMeshData static_meshes[NUM_STATIC_MESH_TYPE];
 
+    ID3D11Buffer* fsq_vertex_buffer;
+    ID3D11InputLayout* fsq_layout;
+    ID3D11ShaderResourceView* fb_texture_view;
+    ID3D11SamplerState* fsq_sampler;
+    ID3D11RenderTargetView* fsq_render_target_view;
+
     struct RenderWorldQuadData world_quads;
     struct RenderWorldCircleData world_circles;
     struct RenderWorldLineData world_lines;
@@ -121,7 +128,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem);
 struct Engine;
 void platform_win32_render(struct Engine* engine);
 
-void platform_win32_swap_and_clear_buffer(u8 r, u8 g, u8 b);
+void platform_win32_swap_and_clear_buffer(f32 r, f32 g, f32 b);
 
 void platform_win32_add_world_quad(f32 pos_x, f32 pos_y, f32 pos_z, f32 width, f32 height, f32 color_r, f32 color_g, f32 color_b, f32 color_a);
 
