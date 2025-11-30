@@ -10,7 +10,8 @@
 #include "platform_win32/platform_win32_render.h"
 #include "platform_win32/platform_win32_core.h"
 
-#include "platform_win32/include_shaders.h"
+#include <d3d11shader.h>
+#include <d3dcompiler.h>
 
 struct PlatformWin32Render* g_platform_win32_render;
 
@@ -44,8 +45,7 @@ static void create_static_mesh_data(
     const void* init_vertex_data,
     const u32 index_buf_size,
     const void* init_index_data,
-    const u32 num_indices,
-    const u32 instance_buf_size)
+    const u32 num_indices)
 {
     {
         D3D11_BUFFER_DESC buffer_desc = {
@@ -59,22 +59,6 @@ static void create_static_mesh_data(
             &buffer_desc,
             &init_data,
             &out_mesh_data->vertex_buffer
-        );
-        ASSERT(SUCCEEDED(hr), "d3d11 error.");
-    }
-
-    {
-        D3D11_BUFFER_DESC buffer_desc = {
-            .ByteWidth = instance_buf_size,
-            .Usage = D3D11_USAGE_DYNAMIC,
-            .BindFlags = D3D11_BIND_VERTEX_BUFFER,
-            .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
-        };
-        HRESULT hr = ID3D11Device_CreateBuffer(
-            device,
-            &buffer_desc,
-            NULL,
-            &out_mesh_data->instance_buffer
         );
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
     }
@@ -280,8 +264,6 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         );
     }
 
-    const u32 static_instance_data_buffer_size = sizeof(struct InstanceData) * MAX_INSTANCES;
-
     {
         const struct Vertex quad_verts[] = {
             {
@@ -308,8 +290,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             quad_verts,
             sizeof(quad_indices),
             quad_indices,
-            ARRAY_COUNT(quad_indices),
-            static_instance_data_buffer_size
+            ARRAY_COUNT(quad_indices)
         );
     }
 
@@ -347,6 +328,38 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         );
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
     }
+    
+    {
+        D3D11_BUFFER_DESC buffer_desc = {
+            .ByteWidth = sizeof(struct InstanceData) * MAX_INSTANCES,
+            .Usage = D3D11_USAGE_DYNAMIC,
+            .BindFlags = D3D11_BIND_SHADER_RESOURCE,
+            .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
+            .MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED,
+            .StructureByteStride = sizeof(struct InstanceData),
+        };
+        hr = ID3D11Device_CreateBuffer(
+            win32_render->device,
+            &buffer_desc,
+            NULL,
+            &win32_render->instance_buffer
+        );
+        ASSERT(SUCCEEDED(hr), "d3d11 error.");
+    }
+
+    {
+        D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
+        srv_desc.Format = DXGI_FORMAT_UNKNOWN;
+        srv_desc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+        srv_desc.Buffer.FirstElement = 0;
+        srv_desc.Buffer.NumElements = MAX_INSTANCES;
+        hr = ID3D11Device_CreateShaderResourceView(
+            win32_render->device,
+            (ID3D11Resource*)win32_render->instance_buffer,
+            &srv_desc,
+            &win32_render->instance_buffer_srv);
+        ASSERT(SUCCEEDED(hr), "d3d11 error.");
+    }
 
     {
         D3D11_SAMPLER_DESC sampler_desc = {
@@ -364,149 +377,85 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
     }
 
     {
-        D3D11_INPUT_ELEMENT_DESC layout_descs[] = {
-            {
-                .SemanticName = "POSITION",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-                .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA,
-            },
-            {
-                .SemanticName = "TEXCOORD",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-                .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA,
-            },
-        };
-        hr = ID3D11Device_CreateInputLayout(win32_render->device,
-                                       layout_descs,
-                                       ARRAY_COUNT(layout_descs),
-                                       d3d11_vshader_fsq,
-                                       sizeof(d3d11_vshader_fsq),
-                                       &win32_render->fsq_layout);
-        ASSERT(SUCCEEDED(hr), "d3d11 error.");
-    }
-
-    {
-        D3D11_INPUT_ELEMENT_DESC layout_descs[] = {
-            {
-                .SemanticName = "POSITION",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-                .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA,
-            },
-            {
-                .SemanticName = "TEXCOORD",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32_FLOAT,
-                .InputSlot = 0,
-                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-                .InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA,
-            },
-            {
-                .SemanticName = "POSITION",
-                .SemanticIndex = 1,
-                .Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
-                .InputSlot = 1,
-                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-                .InputSlotClass = D3D11_INPUT_PER_INSTANCE_DATA,
-                .InstanceDataStepRate = 1,
-            },
-            {
-                .SemanticName = "POSITION",
-                .SemanticIndex = 2,
-                .Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
-                .InputSlot = 1,
-                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-                .InputSlotClass = D3D11_INPUT_PER_INSTANCE_DATA,
-                .InstanceDataStepRate = 1,
-            },
-            {
-                .SemanticName = "POSITION",
-                .SemanticIndex = 3,
-                .Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
-                .InputSlot = 1,
-                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-                .InputSlotClass = D3D11_INPUT_PER_INSTANCE_DATA,
-                .InstanceDataStepRate = 1,
-            },
-            {
-                .SemanticName = "COLOR",
-                .SemanticIndex = 0,
-                .Format = DXGI_FORMAT_R32G32B32A32_FLOAT,
-                .InputSlot = 1,
-                .AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT,
-                .InputSlotClass = D3D11_INPUT_PER_INSTANCE_DATA,
-                .InstanceDataStepRate = 1,
-            },
-        };
-        hr = ID3D11Device_CreateInputLayout(win32_render->device,
-                                       layout_descs,
-                                       ARRAY_COUNT(layout_descs),
-                                       d3d11_vshader_basic,
-                                       sizeof(d3d11_vshader_basic),
-                                       &win32_render->layout);
-        ASSERT(SUCCEEDED(hr), "d3d11 error.");
-    }
-    
-    {
-
-        const void* vertex_shader_byte_code[] = {
-            d3d11_vshader_fsq,
-            d3d11_vshader_basic,
-            d3d11_vshader_basic_color,
-            d3d11_vshader_circle_basic_color,
-            d3d11_vshader_line_basic_color,
-        };
-        _Static_assert(ARRAY_COUNT(vertex_shader_byte_code) == NUM_SHADER_TYPE, "Inconsistent size.");
-        const u64 vertex_shader_byte_code_size[] = {
-            sizeof(d3d11_vshader_fsq),
-            sizeof(d3d11_vshader_basic),
-            sizeof(d3d11_vshader_basic_color),
-            sizeof(d3d11_vshader_circle_basic_color),
-            sizeof(d3d11_vshader_line_basic_color),
-        };
-        _Static_assert(ARRAY_COUNT(vertex_shader_byte_code_size) == NUM_SHADER_TYPE, "Inconsistent size.");
-        const void* pixel_shader_byte_code[] = {
-            d3d11_pshader_fsq,
-            d3d11_pshader_basic,
-            d3d11_pshader_basic_color,
-            d3d11_pshader_circle_basic_color,
-            d3d11_pshader_line_basic_color,
-        };
-        _Static_assert(ARRAY_COUNT(pixel_shader_byte_code) == NUM_SHADER_TYPE, "Inconsistent size.");
-        const u64 pixel_shader_byte_code_size[] = {
-            sizeof(d3d11_pshader_fsq),
-            sizeof(d3d11_pshader_basic),
-            sizeof(d3d11_pshader_basic_color),
-            sizeof(d3d11_pshader_circle_basic_color),
-            sizeof(d3d11_pshader_line_basic_color),
-        };
-        _Static_assert(ARRAY_COUNT(pixel_shader_byte_code_size) == NUM_SHADER_TYPE, "Inconsistent size.");
-
-        for(u64 i = 0; i < NUM_SHADER_TYPE; i++)
+        for(u64 i_shader = 0; i_shader < NUM_SHADERS; i_shader++)
         {
-            hr = ID3D11Device_CreateVertexShader(win32_render->device,
-                                                 vertex_shader_byte_code[i],
-                                                 vertex_shader_byte_code_size[i],
-                                                 NULL,
-                                                 &win32_render->vertex_shaders[i]);
+            const void* vshader_byte_code = VERTEX_SHADER_BYTE_CODE[i_shader];
+            const u64 vshader_byte_code_size = VERTEX_SHADER_BYTE_CODE_SIZE[i_shader];
+
+            const void* pshader_byte_code = PIXEL_SHADER_BYTE_CODE[i_shader];
+            const u64 pshader_byte_code_size = PIXEL_SHADER_BYTE_CODE_SIZE[i_shader];
+
+            ID3D11ShaderReflection* vshader_reflection = NULL;
+            hr = D3DReflect(
+                vshader_byte_code,
+                vshader_byte_code_size,
+                &IID_ID3D11ShaderReflection,
+                (void**)&vshader_reflection);
             ASSERT(SUCCEEDED(hr), "d3d11 error.");
-            hr = ID3D11Device_CreatePixelShader(win32_render->device,
-                                                pixel_shader_byte_code[i],
-                                                pixel_shader_byte_code_size[i],
-                                                NULL,
-                                                &win32_render->pixel_shaders[i]);
+
+            ID3D11ShaderReflectionVtbl* vshader_reflection_vtbl = vshader_reflection->lpVtbl;
+
+            D3D11_SHADER_DESC vshader_desc;
+            vshader_reflection_vtbl->GetDesc(vshader_reflection, &vshader_desc);
+
+            D3D11_INPUT_ELEMENT_DESC layout_descs[D3D11_IA_VERTEX_INPUT_RESOURCE_SLOT_COUNT] = {};
+            for(u64 i_param = 0; i_param < vshader_desc.InputParameters; i_param++)
+            {
+                D3D11_SIGNATURE_PARAMETER_DESC param_desc;
+                vshader_reflection_vtbl->GetInputParameterDesc(vshader_reflection, (u32)i_param, &param_desc);
+                D3D11_INPUT_ELEMENT_DESC* layout_desc = &layout_descs[i_param];
+
+                layout_desc->SemanticName = param_desc.SemanticName;
+                layout_desc->SemanticIndex = param_desc.SemanticIndex;
+
+                // https://learn.microsoft.com/en-us/windows/win32/api/d3d11shader/ns-d3d11shader-d3d11_signature_parameter_desc
+                // https://learn.microsoft.com/en-us/windows/win32/api/d3dcommon/ne-d3dcommon-d3d_register_component_type
+                const DXGI_FORMAT format_table[4][4] =
+                {
+                    { DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_R32_UINT, DXGI_FORMAT_R32_SINT, DXGI_FORMAT_R32_FLOAT },
+                    { DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_R32G32_UINT, DXGI_FORMAT_R32G32_SINT, DXGI_FORMAT_R32G32_FLOAT },
+                    { DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_R32G32B32_UINT, DXGI_FORMAT_R32G32B32_SINT, DXGI_FORMAT_R32G32B32_FLOAT },
+                    { DXGI_FORMAT_UNKNOWN, DXGI_FORMAT_R32G32B32A32_UINT, DXGI_FORMAT_R32G32B32A32_SINT, DXGI_FORMAT_R32G32B32A32_FLOAT },
+                };
+                const u32 component_mask_idx = _tzcnt_u32(~(u32)param_desc.Mask) - 1;
+                ASSERT(component_mask_idx < 4, "Unexpected param component mask 0x%X", (u32)param_desc.Mask, component_mask_idx);
+                const u32 component_type_idx = param_desc.ComponentType;
+                ASSERT((u32)param_desc.ComponentType < 4, "Unexpected param component type %u", (u32)param_desc.ComponentType);
+                layout_desc->Format = format_table[component_mask_idx][component_type_idx];
+
+                layout_desc->InputSlot = 0;
+                layout_desc->AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+                layout_desc->InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+                layout_desc->InstanceDataStepRate = 0;
+            }
+
+            hr = ID3D11Device_CreateInputLayout(
+                win32_render->device,
+                layout_descs,
+                vshader_desc.InputParameters,
+                vshader_byte_code,
+                vshader_byte_code_size,
+                &win32_render->shader_input_layouts[i_shader]);
+            ASSERT(SUCCEEDED(hr), "d3d11 error.");
+
+            hr = ID3D11Device_CreateVertexShader(
+                win32_render->device,
+                vshader_byte_code,
+                vshader_byte_code_size,
+                NULL,
+                &win32_render->vertex_shaders[i_shader]);
+            ASSERT(SUCCEEDED(hr), "d3d11 error.");
+
+            hr = ID3D11Device_CreatePixelShader(
+                win32_render->device,
+                pshader_byte_code,
+                pshader_byte_code_size,
+                NULL,
+                &win32_render->pixel_shaders[i_shader]);
             ASSERT(SUCCEEDED(hr), "d3d11 error.");
         }
     }
-
+    
     win32_render->world_quads.num = 0;
     win32_render->world_circles.num = 0;
     win32_render->world_lines.num = 0;
@@ -824,10 +773,11 @@ void platform_win32_render(struct Engine* engine)
     {
         const enum StaticMeshType mesh_type = STATIC_MESH_QUAD;
         ID3D11Buffer* vertex_buffer = win32_render->static_meshes[mesh_type].vertex_buffer;
-        ID3D11Buffer* instance_buffer = win32_render->static_meshes[mesh_type].instance_buffer;
         ID3D11Buffer* index_buffer = win32_render->static_meshes[mesh_type].index_buffer;
         u32 num_indices = win32_render->static_meshes[mesh_type].num_indices;
-        const enum ShaderType shader_type = SHADER_BASIC_COLOR;
+        const enum ShaderType shader_type = SHADER_basic_color;
+        ID3D11InputLayout* shader_input_layout = win32_render->shader_input_layouts[shader_type];
+        ID3D11Buffer* instance_buffer = win32_render->instance_buffer;
 
         u32 num_instances = 0;
      
@@ -872,9 +822,14 @@ void platform_win32_render(struct Engine* engine)
      
         ID3D11DeviceContext_VSSetShader(device_context, win32_render->vertex_shaders[shader_type], NULL, 0);
         ID3D11DeviceContext_PSSetShader(device_context, win32_render->pixel_shaders[shader_type], NULL, 0);
+
+        ID3D11ShaderResourceView* vsrv[] = {
+            win32_render->instance_buffer_srv
+        };
+        ID3D11DeviceContext_VSSetShaderResources(device_context, 0, 1, vsrv);
      
         ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        ID3D11DeviceContext_IASetInputLayout(device_context, win32_render->layout);
+        ID3D11DeviceContext_IASetInputLayout(device_context, shader_input_layout);
         ID3D11DeviceContext_IASetIndexBuffer(device_context, index_buffer, DXGI_FORMAT_R32_UINT, 0);
         ID3D11Buffer* vertex_buffers[] = {
             vertex_buffer,
@@ -910,10 +865,11 @@ void platform_win32_render(struct Engine* engine)
     {
         const enum StaticMeshType mesh_type = STATIC_MESH_QUAD;
         ID3D11Buffer* vertex_buffer = win32_render->static_meshes[mesh_type].vertex_buffer;
-        ID3D11Buffer* instance_buffer = win32_render->static_meshes[mesh_type].instance_buffer;
         ID3D11Buffer* index_buffer = win32_render->static_meshes[mesh_type].index_buffer;
         u32 num_indices = win32_render->static_meshes[mesh_type].num_indices;
-        const enum ShaderType shader_type = SHADER_CIRCLE_BASIC_COLOR;
+        const enum ShaderType shader_type = SHADER_lit_circle_outline;
+        ID3D11InputLayout* shader_input_layout = win32_render->shader_input_layouts[shader_type];
+        ID3D11Buffer* instance_buffer = win32_render->instance_buffer;
 
         u32 num_instances = 0;
      
@@ -957,9 +913,14 @@ void platform_win32_render(struct Engine* engine)
      
         ID3D11DeviceContext_VSSetShader(device_context, win32_render->vertex_shaders[shader_type], NULL, 0);
         ID3D11DeviceContext_PSSetShader(device_context, win32_render->pixel_shaders[shader_type], NULL, 0);
+
+        ID3D11ShaderResourceView* vsrv[] = {
+            win32_render->instance_buffer_srv
+        };
+        ID3D11DeviceContext_VSSetShaderResources(device_context, 0, 1, vsrv);
      
         ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        ID3D11DeviceContext_IASetInputLayout(device_context, win32_render->layout);
+        ID3D11DeviceContext_IASetInputLayout(device_context, shader_input_layout);
         ID3D11DeviceContext_IASetIndexBuffer(device_context, index_buffer, DXGI_FORMAT_R32_UINT, 0);
         ID3D11Buffer* vertex_buffers[] = {
             vertex_buffer,
@@ -995,10 +956,11 @@ void platform_win32_render(struct Engine* engine)
     {
         const enum StaticMeshType mesh_type = STATIC_MESH_QUAD;
         ID3D11Buffer* vertex_buffer = win32_render->static_meshes[mesh_type].vertex_buffer;
-        ID3D11Buffer* instance_buffer = win32_render->static_meshes[mesh_type].instance_buffer;
         ID3D11Buffer* index_buffer = win32_render->static_meshes[mesh_type].index_buffer;
         u32 num_indices = win32_render->static_meshes[mesh_type].num_indices;
-        const enum ShaderType shader_type = SHADER_LINE_BASIC_COLOR;
+        const enum ShaderType shader_type = SHADER_line_basic_color;
+        ID3D11InputLayout* shader_input_layout = win32_render->shader_input_layouts[shader_type];
+        ID3D11Buffer* instance_buffer = win32_render->instance_buffer;
 
         u32 num_instances = 0;
      
@@ -1053,9 +1015,14 @@ void platform_win32_render(struct Engine* engine)
      
         ID3D11DeviceContext_VSSetShader(device_context, win32_render->vertex_shaders[shader_type], NULL, 0);
         ID3D11DeviceContext_PSSetShader(device_context, win32_render->pixel_shaders[shader_type], NULL, 0);
+
+        ID3D11ShaderResourceView* vsrv[] = {
+            win32_render->instance_buffer_srv
+        };
+        ID3D11DeviceContext_VSSetShaderResources(device_context, 0, 1, vsrv);
      
         ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-        ID3D11DeviceContext_IASetInputLayout(device_context, win32_render->layout);
+        ID3D11DeviceContext_IASetInputLayout(device_context, shader_input_layout);
         ID3D11DeviceContext_IASetIndexBuffer(device_context, index_buffer, DXGI_FORMAT_R32_UINT, 0);
         ID3D11Buffer* vertex_buffers[] = {
             vertex_buffer,
@@ -1090,7 +1057,8 @@ void platform_win32_render(struct Engine* engine)
 
     {
         ID3D11Buffer* vertex_buffer = win32_render->fsq_vertex_buffer;
-        const enum ShaderType shader_type = SHADER_FSQ;
+        const enum ShaderType shader_type = SHADER_fsq;
+        ID3D11InputLayout* shader_input_layout = win32_render->shader_input_layouts[shader_type];
 
         ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->render_target_view, win32_render->depth_stencil_view);
 
@@ -1119,7 +1087,7 @@ void platform_win32_render(struct Engine* engine)
         );
      
         ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-        ID3D11DeviceContext_IASetInputLayout(device_context, win32_render->fsq_layout);
+        ID3D11DeviceContext_IASetInputLayout(device_context, shader_input_layout);
         ID3D11Buffer* vertex_buffers[] = {
             vertex_buffer,
         };

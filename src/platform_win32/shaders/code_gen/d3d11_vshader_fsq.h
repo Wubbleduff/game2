@@ -31,7 +31,7 @@ ret
 // Approximately 0 instruction slots used
 #endif
 
-const BYTE d3d11_vshader_fsq[] =
+const BYTE D3D11_VSHADER_fsq[] =
 {
      68,  88,  66,  67, 203,  38, 
       0,  29, 151, 245, 131, 189, 

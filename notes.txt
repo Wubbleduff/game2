@@ -1,0 +1,25 @@
+2D shooter strategy
+
+Gameplay loop:
+* Command troops to attack or defend objectives
+  * Defend position
+  * Attack position on a call
+  * Capture flag, point, or "plant bomb"
+  * Choose team where allies have strengths and weaknesses
+* Play as a troop yourself
+  * Shoot enemies and move between covered points
+  * Take up different roles to make up for your team
+
+TDM
+Capture the flag
+Search and destroy
+
+Player:
+* Should the player be stronger than NPCs?
+
+Combat attributes:
+* Movement speed
+* Defense
+* Firepower / strength
+* Range
+* Tools, specials, vision, intel

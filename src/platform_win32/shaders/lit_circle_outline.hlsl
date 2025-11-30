@@ -46,7 +46,18 @@ float4 ps(PS_INPUT input) : SV_TARGET
 {
     float3 result_color = input.color.xyz;
 
-    if(length(input.model_pos) > 0.5f)
+    float edge_dist = length(input.model_pos);
+
+    const float thickness = 0.1;
+    if(edge_dist < 0.5 - thickness)
+    {
+        result_color *= 0.06f;
+    }
+    else if(edge_dist < 0.5)
+    {
+        // Normal color.
+    }
+    else
     {
         discard;
     }

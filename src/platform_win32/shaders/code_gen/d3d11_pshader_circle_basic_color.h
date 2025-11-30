@@ -34,7 +34,7 @@ ret
 // Approximately 0 instruction slots used
 #endif
 
-const BYTE d3d11_pshader_circle_basic_color[] =
+const BYTE D3D11_PSHADER_circle_basic_color[] =
 {
      68,  88,  66,  67, 160,   9, 
     107, 118, 226,  64,  65,  18, 

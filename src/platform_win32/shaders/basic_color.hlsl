@@ -1,12 +1,10 @@
 
 struct VS_INPUT
 {
-     float2 pos : POSITION0;
-     float2 tex_coord : TEXCOORD0;
-     float4 instance_xform0 : POSITION1;
-     float4 instance_xform1 : POSITION2;
-     float4 instance_xform2 : POSITION3;
-     float4 instance_color : COLOR0;
+    float2 pos : POSITION0;
+    float2 tex_coord : TEXCOORD0;
+
+    uint instance_id : SV_InstanceID;
 };
 
 struct PS_INPUT
@@ -20,16 +18,25 @@ cbuffer cbuffer0 : register(b0)
     float4x4 utransform;
 }
 
+struct InstanceData
+{
+    float4 xform[3];
+    float4 color;
+};
+
+StructuredBuffer<InstanceData> instance_data : register(t0);
+
 PS_INPUT vs(VS_INPUT input)
 {
     PS_INPUT output;
+    InstanceData inst = instance_data[input.instance_id];
     float4 res = float4(
-        dot(float4(input.pos, 0.0f, 1.0f), input.instance_xform0),
-        dot(float4(input.pos, 0.0f, 1.0f), input.instance_xform1),
-        dot(float4(input.pos, 0.0f, 1.0f), input.instance_xform2),
+        dot(float4(input.pos, 0.0f, 1.0f), inst.xform[0]),
+        dot(float4(input.pos, 0.0f, 1.0f), inst.xform[1]),
+        dot(float4(input.pos, 0.0f, 1.0f), inst.xform[2]),
         1.0f);
     output.pos = mul(utransform, res);
-    output.color = input.instance_color;
+    output.color = inst.color;
     return output;
 }
 

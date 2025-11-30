@@ -3,23 +3,13 @@
 
 #include "common.h"
 
+#include "platform_win32/shaders/code_gen/shaders.h"
+
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#define COBJMACROS
 #include <d3d11.h>
 #include <dxgi1_3.h>
-
-enum ShaderType
-{
-    SHADER_FSQ,
-    SHADER_BASIC,
-    SHADER_BASIC_COLOR,
-    SHADER_CIRCLE_BASIC_COLOR,
-    SHADER_LINE_BASIC_COLOR,
-    
-    NUM_SHADER_TYPE
-};
 
 enum StaticMeshType
 {
@@ -31,7 +21,6 @@ enum StaticMeshType
 struct StaticMeshData
 {
     ID3D11Buffer* vertex_buffer;
-    ID3D11Buffer* instance_buffer;
     ID3D11Buffer* index_buffer;
     u32 num_indices;
 };
@@ -101,14 +90,16 @@ struct PlatformWin32Render
     ID3D11RenderTargetView* render_target_view;
     ID3D11DepthStencilView* depth_stencil_view;
 
-    ID3D11InputLayout* layout;
-
-    ID3D11VertexShader* vertex_shaders[NUM_SHADER_TYPE];
-    ID3D11PixelShader* pixel_shaders[NUM_SHADER_TYPE];
+    ID3D11InputLayout* shader_input_layouts[NUM_SHADERS];
+    ID3D11VertexShader* vertex_shaders[NUM_SHADERS];
+    ID3D11PixelShader* pixel_shaders[NUM_SHADERS];
     
     ID3D11Buffer* constant_buffer;
 
     struct StaticMeshData static_meshes[NUM_STATIC_MESH_TYPE];
+
+    ID3D11Buffer* instance_buffer;
+    ID3D11ShaderResourceView* instance_buffer_srv;
 
     ID3D11Buffer* fsq_vertex_buffer;
     ID3D11InputLayout* fsq_layout;

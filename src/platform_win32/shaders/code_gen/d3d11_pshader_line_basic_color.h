@@ -27,7 +27,7 @@ ret
 // Approximately 0 instruction slots used
 #endif
 
-const BYTE d3d11_pshader_line_basic_color[] =
+const BYTE D3D11_PSHADER_line_basic_color[] =
 {
      68,  88,  66,  67, 111, 167, 
     207,  80, 124,  71,  43, 229, 

@@ -27,11 +27,11 @@ struct Build
 };
 
 
-#define COMMON_COMPILE_FLAGS "/c", "/W4", "/WX", "/EHsc", "/std:c17", "/GS-", "/Gs9999999", "/nologo", "/Isrc"
+#define COMMON_COMPILE_FLAGS "/c", "/W4", "/WX", "/EHsc", "/std:c17", "/GS-", "/Gs9999999", "/nologo", "/DCINTERFACE", "/DCOBJMACROS", "/Isrc"
 #define DEBUG_COMPILE_FLAGS "/Od", "/Zi", "/DDEBUG"
 #define RELEASE_COMPILE_FLAGS "/O2"
 #define COMMON_LINKER_FLAGS "/NODEFAULTLIB", "/STACK:0x100000,0x100000", "/SUBSYSTEM:WINDOWS", "/MACHINE:X64", "/nologo"
-#define LIBS "kernel32.lib", "user32.lib", "gdi32.lib", "d3d11.lib", "dxgi.lib", "dxguid.lib"
+#define LIBS "kernel32.lib", "user32.lib", "gdi32.lib", "d3d11.lib", "dxgi.lib", "dxguid.lib", "D3DCompiler.lib"
 
 #define ARRAY_INIT(TYPE, NAME, ...) .num_##NAME = (sizeof( (TYPE[]) { __VA_ARGS__ } ) / sizeof(TYPE)), .NAME = { __VA_ARGS__ }
 struct Build build[] =
@@ -383,6 +383,9 @@ int main()
     u64 num_hlsl_files = 0;
     String256* hlsl_files = (String256*)calloc(MAX_SRC * sizeof(String256), 1);
 
+    u64 num_shader_names = 0;
+    String256* shader_names = (String256*)calloc(MAX_SRC * sizeof(String256), 1);
+
     u64 num_obj_files = 0;
     String256* obj_files = (String256*)calloc(MAX_SRC * sizeof(String256), 1);
 
@@ -408,32 +411,111 @@ int main()
     }
     
     // Compile shaders.
-    for(u64 i = 0; i < num_hlsl_files; i++)
     {
-        const String256 hlsl_file = hlsl_files[i];
-        String256 name = str_slice_left(hlsl_file, str_rfind_char(hlsl_file, '.'));
-        name = str_slice_right(name, str_rfind_char(name, '\\') + 1);
+        FILE* shaders_h_file = fopen("src/platform_win32/shaders/code_gen/shaders.h", "w");
+        ASSERT(shaders_h_file != 0, "Could not open shaders.h file.");
 
-        char cmd[4096] = {};
-        s32 num_written = snprintf(
-            cmd,
-            sizeof(cmd),
-            "fxc.exe /nologo /T vs_5_0 /E vs /O3 /WX /Zpc /Ges /Fh src\\platform_win32\\shaders\\generated\\d3d11_vshader_%s.h /Vn d3d11_vshader_%s /Qstrip_reflect /Qstrip_debug /Qstrip_priv %s",
-            name.s,
-            name.s,
-            hlsl_file.s);
-        ASSERT(num_written >= 0 && num_written >= 0 && num_written < sizeof(cmd), "cmd overflow.");
-        run_cmd(cmd);
+        FILE* shaders_c_file = fopen("src/platform_win32/shaders/code_gen/shaders.c", "w");
+        ASSERT(shaders_c_file != 0, "Could not open shaders.c file.");
 
-        num_written = snprintf(
-            cmd,
-            sizeof(cmd),
-            "fxc.exe /nologo /T ps_5_0 /E ps /O3 /WX /Zpc /Ges /Fh src\\platform_win32\\shaders\\generated\\d3d11_pshader_%s.h /Vn d3d11_pshader_%s /Qstrip_reflect /Qstrip_debug /Qstrip_priv %s",
-            name.s,
-            name.s,
-            hlsl_file.s);
-        ASSERT(num_written >= 0 && num_written >= 0 && num_written < sizeof(cmd), "cmd overflow.");
-        run_cmd(cmd);
+        fprintf(shaders_c_file, "typedef unsigned char BYTE;\n");
+        fprintf(shaders_c_file, "\n");
+
+        for(u64 i = 0; i < num_hlsl_files; i++)
+        {
+            const String256 hlsl_file = hlsl_files[i];
+            String256 name = str_slice_left(hlsl_file, str_rfind_char(hlsl_file, '.'));
+            name = str_slice_right(name, str_rfind_char(name, '\\') + 1);
+
+            String256 vshader_h;
+            s32 num_written = snprintf(vshader_h.s, sizeof(vshader_h.s), "platform_win32/shaders/code_gen/d3d11_vshader_%s.h", name.s);
+            ASSERT(num_written >= 0 && num_written < sizeof(vshader_h), "vshader_h overflow.");
+
+            String256 pshader_h;
+            num_written = snprintf(pshader_h.s, sizeof(pshader_h.s), "platform_win32/shaders/code_gen/d3d11_pshader_%s.h", name.s);
+            ASSERT(num_written >= 0 && num_written < sizeof(pshader_h), "pshader_h overflow.");
+
+            char cmd[4096] = {};
+            num_written = snprintf(
+                cmd,
+                sizeof(cmd),
+                "fxc.exe /nologo /T vs_5_0 /E vs /O3 /WX /Zpc /Ges /Fh src/%s /Vn D3D11_VSHADER_%s /Qstrip_reflect /Qstrip_debug /Qstrip_priv %s",
+                vshader_h.s,
+                name.s,
+                hlsl_file.s);
+            ASSERT(num_written >= 0 && num_written < sizeof(cmd), "cmd overflow.");
+            run_cmd(cmd);
+
+            num_written = snprintf(
+                cmd,
+                sizeof(cmd),
+                "fxc.exe /nologo /T ps_5_0 /E ps /O3 /WX /Zpc /Ges /Fh src/%s /Vn D3D11_PSHADER_%s /Qstrip_reflect /Qstrip_debug /Qstrip_priv %s",
+                pshader_h.s,
+                name.s,
+                hlsl_file.s);
+            ASSERT(num_written >= 0 && num_written < sizeof(cmd), "cmd overflow.");
+            run_cmd(cmd);
+
+            fprintf(shaders_c_file, "#include \"%s\"\n", vshader_h.s);
+            fprintf(shaders_c_file, "#include \"%s\"\n", pshader_h.s);
+            fprintf(shaders_c_file, "\n");
+
+            ASSERT(num_shader_names < MAX_SRC, "shader_names overflow.");
+            shader_names[num_shader_names] = name;
+            num_shader_names++;
+        }
+
+        fprintf(shaders_h_file, "#pragma once\n");
+        fprintf(shaders_h_file, "\n");
+
+        fprintf(shaders_h_file, "enum ShaderType\n{\n");
+        for(u64 i = 0; i < num_shader_names; i++)
+        {
+            fprintf(shaders_h_file, "    SHADER_%s,\n", shader_names[i].s);
+        }
+        fprintf(shaders_h_file, "    NUM_SHADERS,\n");
+        fprintf(shaders_h_file, "};\n");
+        fprintf(shaders_h_file, "\n");
+
+        fprintf(shaders_h_file, "extern const void* VERTEX_SHADER_BYTE_CODE[%llu];\n", num_shader_names);
+        fprintf(shaders_h_file, "extern const size_t VERTEX_SHADER_BYTE_CODE_SIZE[%llu];\n", num_shader_names);
+        fprintf(shaders_h_file, "extern const void* PIXEL_SHADER_BYTE_CODE[%llu];\n", num_shader_names);
+        fprintf(shaders_h_file, "extern const size_t PIXEL_SHADER_BYTE_CODE_SIZE[%llu];\n", num_shader_names);
+
+        fprintf(shaders_c_file, "const void* VERTEX_SHADER_BYTE_CODE[] = {\n");
+        for(u64 i = 0; i < num_shader_names; i++)
+        {
+            fprintf(shaders_c_file, "    D3D11_VSHADER_%s,\n", shader_names[i].s);
+        }
+        fprintf(shaders_c_file, "};\n");
+        fprintf(shaders_c_file, "\n");
+
+        fprintf(shaders_c_file, "const size_t VERTEX_SHADER_BYTE_CODE_SIZE[] = {\n");
+        for(u64 i = 0; i < num_shader_names; i++)
+        {
+            fprintf(shaders_c_file, "    sizeof(D3D11_VSHADER_%s),\n", shader_names[i].s);
+        }
+        fprintf(shaders_c_file, "};\n");
+        fprintf(shaders_c_file, "\n");
+
+        fprintf(shaders_c_file, "const void* PIXEL_SHADER_BYTE_CODE[] = {\n");
+        for(u64 i = 0; i < num_shader_names; i++)
+        {
+            fprintf(shaders_c_file, "    D3D11_PSHADER_%s,\n", shader_names[i].s);
+        }
+        fprintf(shaders_c_file, "};\n");
+        fprintf(shaders_c_file, "\n");
+
+        fprintf(shaders_c_file, "const size_t PIXEL_SHADER_BYTE_CODE_SIZE[] = {\n");
+        for(u64 i = 0; i < num_shader_names; i++)
+        {
+            fprintf(shaders_c_file, "    sizeof(D3D11_PSHADER_%s),\n", shader_names[i].s);
+        }
+        fprintf(shaders_c_file, "};\n");
+        fprintf(shaders_c_file, "\n");
+
+        fclose(shaders_h_file);
+        fclose(shaders_c_file);
     }
 
     u32 compile_error = 0;
