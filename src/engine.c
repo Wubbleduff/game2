@@ -168,7 +168,7 @@ static void update_physics(
                 const v2 bullet_prev_pos = make_v2(bullet_prev_pos_x[i_bullet], bullet_prev_pos_y[i_bullet]);
                 const v2 bullet_pos = make_v2(bullet_pos_x[i_bullet], bullet_pos_y[i_bullet]);
         
-                const struct LevelWall* wall = &level->walls[i_wall];
+                const struct LevelWallGeometry* wall = &level->walls[i_wall];
                 const v2 wall_bl = make_v2((f32)wall->x,                  (f32)wall->y);
                 const v2 wall_br = make_v2((f32)(wall->x + (s32)wall->w), (f32)wall->y);
                 const v2 wall_tl = make_v2((f32)wall->x,                  (f32)(wall->y + (s32)wall->h));
@@ -176,6 +176,8 @@ static void update_physics(
         
                 u32 hit = 0;
         
+                // TODO(mfritz):
+                // This is not correct! While playing, an assert fired that bullet went out of bounds.
                 hit |= intersect_line_segments_2d(bullet_prev_pos, bullet_pos, wall_bl, wall_br);
                 hit |= intersect_line_segments_2d(bullet_prev_pos, bullet_pos, wall_br, wall_tr);
                 hit |= intersect_line_segments_2d(bullet_prev_pos, bullet_pos, wall_tr, wall_tl);
@@ -209,7 +211,7 @@ static void update_physics(
                 {
                     player_vel_x[player_id] += bullet_vel_x[i_bullet] * 0.1f;
                     player_vel_y[player_id] += bullet_vel_y[i_bullet] * 0.1f;
-                    player_health[player_id] = max_s32(player_health[player_id] - 10, 0);
+                    player_health[player_id] = max_s32(player_health[player_id] - 25, 0);
                     bullet_is_dead[i_bullet] = 1;
                 }
             }
@@ -260,7 +262,7 @@ static void update_physics(
 
             for(u32 i_wall = 0; i_wall < level->num_walls; i_wall++)
             {
-                const struct LevelWall* wall = &level->walls[i_wall];
+                const struct LevelWallGeometry* wall = &level->walls[i_wall];
                 const f32 wall_left = (f32)wall->x;
                 const f32 wall_right = (f32)(wall->x + (s32)wall->w);
                 const f32 wall_bottom = (f32)wall->y;

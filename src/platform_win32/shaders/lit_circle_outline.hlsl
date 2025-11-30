@@ -44,23 +44,37 @@ PS_INPUT vs(VS_INPUT input)
 
 float4 ps(PS_INPUT input) : SV_TARGET
 {
-    float3 result_color = input.color.xyz;
-
-    float edge_dist = length(input.model_pos);
-
-    const float thickness = 0.1;
-    if(edge_dist < 0.5 - thickness)
+    const float3 high_color = input.color.xyz;
+    const float3 low_color = input.color.xyz * 0.03;
+    float l = length(input.model_pos);
+    float e_min = 0.4;
+    float inner = 0.425;
+    float outer = 0.475;
+    float e_max = 0.5;
+    float3 result_color = float3(0.0, 0.0, 0.0);
+    if(l < e_min)
     {
-        result_color *= 0.06f;
+        result_color = low_color;
     }
-    else if(edge_dist < 0.5)
+    else if(l >= e_min && l < inner)
     {
-        // Normal color.
+        float t = (l - e_min) / (inner - e_min);
+        t = 3.0 * t*t - 2.0*t * t*t;
+        result_color = lerp(low_color, high_color, float3(t, t, t));
+    }
+    else if(l >= inner && l < outer)
+    {
+        result_color = high_color;
+    }
+    else if(l >= outer && l < e_max)
+    {
+        float t = (l - outer) / (e_max - outer);
+        t = 3.0 * t*t - 2.0*t * t*t;
+        result_color = lerp(high_color, low_color, float3(t, t, t));
     }
     else
     {
         discard;
     }
-
     return float4(result_color, 1.0);
 }

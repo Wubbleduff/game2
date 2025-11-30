@@ -36,7 +36,7 @@ void init_path_find(struct PathFind* path_find,
     const s32 level_hh = level->height / 2;
     for(u64 i = 0; i < level->num_walls; i++)
     {
-        const struct LevelWall* wall = &level->walls[i];
+        const struct LevelWallGeometry* wall = &level->walls[i];
         const s32 gx0 = clamp_s32(level_hw + wall->x,           0, 255);
         const s32 gx1 = clamp_s32(level_hw + wall->x + wall->w, 0, 255);
         const s32 gy0 = clamp_s32(level_hh + wall->y,           0, 255);

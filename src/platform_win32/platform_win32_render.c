@@ -106,10 +106,12 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             &win32_render->device_context);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
     }
+    
+    ID3D11Device* const device = win32_render->device;
 
     {
         IDXGIDevice* dxgi_device;
-        hr = ID3D11Device_QueryInterface(win32_render->device, &IID_IDXGIDevice, (void**)&dxgi_device);
+        hr = ID3D11Device_QueryInterface(device, &IID_IDXGIDevice, (void**)&dxgi_device);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
         IDXGIAdapter* dxgi_adapter;
@@ -133,7 +135,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD,
         };
 
-        hr = IDXGIFactory2_CreateSwapChainForHwnd(dxgi_factory, (IUnknown*)win32_render->device, win32_core->hwnd, &desc, NULL, NULL, &win32_render->swap_chain);
+        hr = IDXGIFactory2_CreateSwapChainForHwnd(dxgi_factory, (IUnknown*)device, win32_core->hwnd, &desc, NULL, NULL, &win32_render->swap_chain);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
         hr = IDXGIFactory_MakeWindowAssociation(dxgi_factory, win32_core->hwnd, DXGI_MWA_NO_ALT_ENTER);
@@ -157,7 +159,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .FrontCounterClockwise = TRUE,
             .DepthClipEnable = TRUE,
         };
-        hr = ID3D11Device_CreateRasterizerState(win32_render->device, &solid_desc, &win32_render->rasterizer_states[RASTERIZER_STATE_SOLID]);
+        hr = ID3D11Device_CreateRasterizerState(device, &solid_desc, &win32_render->rasterizer_states[RASTERIZER_STATE_SOLID]);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
         D3D11_RASTERIZER_DESC wireframe_desc =
@@ -167,7 +169,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .FrontCounterClockwise = TRUE,
             .DepthClipEnable = TRUE,
         };
-        hr = ID3D11Device_CreateRasterizerState(win32_render->device, &wireframe_desc, &win32_render->rasterizer_states[RASTERIZER_STATE_WIREFRAME]);
+        hr = ID3D11Device_CreateRasterizerState(device, &wireframe_desc, &win32_render->rasterizer_states[RASTERIZER_STATE_WIREFRAME]);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
     }
 
@@ -181,7 +183,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .StencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK,
             .StencilWriteMask = D3D11_DEFAULT_STENCIL_WRITE_MASK,
         };
-        hr = ID3D11Device_CreateDepthStencilState(win32_render->device, &desc, &win32_render->depth_state);
+        hr = ID3D11Device_CreateDepthStencilState(device, &desc, &win32_render->depth_state);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
     }
 
@@ -189,7 +191,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         ID3D11Texture2D* back_buffer;
         hr = IDXGISwapChain1_GetBuffer(win32_render->swap_chain, 0, &IID_ID3D11Texture2D, (void* *)&back_buffer);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
-        hr = ID3D11Device_CreateRenderTargetView(win32_render->device, (ID3D11Resource*)back_buffer, NULL, &win32_render->render_target_view);
+        hr = ID3D11Device_CreateRenderTargetView(device, (ID3D11Resource*)back_buffer, NULL, &win32_render->render_target_view);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
     }
 
@@ -206,7 +208,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
         };
         ID3D11Texture2D* fb_texture;
-        hr = ID3D11Device_CreateTexture2D(win32_render->device, &fb_desc, NULL, &fb_texture);
+        hr = ID3D11Device_CreateTexture2D(device, &fb_desc, NULL, &fb_texture);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
         D3D11_RENDER_TARGET_VIEW_DESC render_target_view_desc =
@@ -217,16 +219,20 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
                 .MipSlice = 0,
             },
         };
-        hr = ID3D11Device_CreateRenderTargetView(win32_render->device, (ID3D11Resource*)fb_texture, &render_target_view_desc, &win32_render->fsq_render_target_view);
+        hr = ID3D11Device_CreateRenderTargetView(
+            device, 
+            (ID3D11Resource*)fb_texture, 
+            &render_target_view_desc, 
+            &win32_render->hdr_fb_render_target_view);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
         hr = ID3D11Texture2D_Release(fb_texture);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
         hr = ID3D11Device_CreateShaderResourceView(
-            win32_render->device,
+            device,
             (ID3D11Resource*)fb_texture,
             NULL,
-            &win32_render->fb_texture_view
+            &win32_render->hdr_fb_texture_view
         );
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
@@ -242,11 +248,78 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .BindFlags = D3D11_BIND_DEPTH_STENCIL,
         };
         ID3D11Texture2D* depth;
-        hr = ID3D11Device_CreateTexture2D(win32_render->device, &depth_desc, NULL, &depth);
+        hr = ID3D11Device_CreateTexture2D(device, &depth_desc, NULL, &depth);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
-        hr = ID3D11Device_CreateDepthStencilView(win32_render->device, (ID3D11Resource*)depth, NULL, &win32_render->depth_stencil_view);
+        hr = ID3D11Device_CreateDepthStencilView(device, (ID3D11Resource*)depth, NULL, &win32_render->depth_stencil_view);
         ASSERT(SUCCEEDED(hr), "d3d11 error.");
         hr = ID3D11Texture2D_Release(depth);
+    }
+
+    {
+        _Static_assert(ARRAY_COUNT(win32_render->bloom_render_target_view) == 4, "Update constant.");
+        for(u64 i_bloom = 0; i_bloom < 4; i_bloom++)
+        {
+            D3D11_TEXTURE2D_DESC tex_desc =
+            {
+                .Width = win32_core->client_width >> (i_bloom + 1),
+                .Height = win32_core->client_height >> (i_bloom + 1),
+                .MipLevels = 1,
+                .ArraySize = 1,
+                .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+                .SampleDesc = { 1, 0 },
+                .Usage = D3D11_USAGE_DEFAULT,
+                .BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+            };
+            ID3D11Texture2D* tex;
+            hr = ID3D11Device_CreateTexture2D(device, &tex_desc, NULL, &tex);
+            ASSERT(SUCCEEDED(hr), "d3d11 error.");
+
+            D3D11_RENDER_TARGET_VIEW_DESC render_target_view_desc =
+            {
+                .Format = DXGI_FORMAT_R16G16B16A16_FLOAT,
+                .ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D,
+                .Texture2D = {
+                    .MipSlice = 0,
+                },
+            };
+            hr = ID3D11Device_CreateRenderTargetView(
+                device,
+                (ID3D11Resource*)tex,
+                &render_target_view_desc,
+                &win32_render->bloom_render_target_view[i_bloom]);
+            ASSERT(SUCCEEDED(hr), "d3d11 error.");
+            hr = ID3D11Texture2D_Release(tex);
+            ASSERT(SUCCEEDED(hr), "d3d11 error.");
+
+            hr = ID3D11Device_CreateShaderResourceView(
+                device,
+                (ID3D11Resource*)tex,
+                NULL,
+                &win32_render->bloom_texture_view[i_bloom]
+            );
+            ASSERT(SUCCEEDED(hr), "d3d11 error.");
+
+            {
+                D3D11_BLEND_DESC desc =
+                {
+                    .AlphaToCoverageEnable = FALSE,
+                    .IndependentBlendEnable = FALSE,
+                    .RenderTarget[0] =
+                    {
+                        .BlendEnable = TRUE,
+                        .SrcBlend = D3D11_BLEND_ONE,
+                        .DestBlend = D3D11_BLEND_ONE,
+                        .BlendOp = D3D11_BLEND_OP_ADD,
+                        .SrcBlendAlpha = D3D11_BLEND_ONE,
+                        .DestBlendAlpha = D3D11_BLEND_ZERO,
+                        .BlendOpAlpha = D3D11_BLEND_OP_ADD,
+                        .RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL,
+                    }
+                };
+                hr = ID3D11Device_CreateBlendState(device, &desc, &win32_render->bloom_blend_state[i_bloom]);
+                ASSERT(SUCCEEDED(hr), "d3d11 error.");
+            }
+        }
     }
 
     {
@@ -257,7 +330,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .CPUAccessFlags = D3D11_CPU_ACCESS_WRITE,
         };
         hr = ID3D11Device_CreateBuffer(
-            win32_render->device,
+            device,
             &buffer_desc,
             0,
             &win32_render->constant_buffer
@@ -285,7 +358,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         };
         create_static_mesh_data(
             &win32_render->static_meshes[STATIC_MESH_QUAD],
-            win32_render->device,
+            device,
             sizeof(quad_verts),
             quad_verts,
             sizeof(quad_indices),
@@ -321,7 +394,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         };
         D3D11_SUBRESOURCE_DATA init_data = { .pSysMem = fsq_quad_verts };
         hr = ID3D11Device_CreateBuffer(
-            win32_render->device,
+            device,
             &buffer_desc,
             &init_data,
             &win32_render->fsq_vertex_buffer
@@ -339,7 +412,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .StructureByteStride = sizeof(struct InstanceData),
         };
         hr = ID3D11Device_CreateBuffer(
-            win32_render->device,
+            device,
             &buffer_desc,
             NULL,
             &win32_render->instance_buffer
@@ -354,7 +427,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
         srv_desc.Buffer.FirstElement = 0;
         srv_desc.Buffer.NumElements = MAX_INSTANCES;
         hr = ID3D11Device_CreateShaderResourceView(
-            win32_render->device,
+            device,
             (ID3D11Resource*)win32_render->instance_buffer,
             &srv_desc,
             &win32_render->instance_buffer_srv);
@@ -369,7 +442,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             .AddressW = D3D11_TEXTURE_ADDRESS_CLAMP,
         };
         hr = ID3D11Device_CreateSamplerState(
-            win32_render->device,
+            device,
             &sampler_desc,
             &win32_render->fsq_sampler
         );
@@ -430,7 +503,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             }
 
             hr = ID3D11Device_CreateInputLayout(
-                win32_render->device,
+                device,
                 layout_descs,
                 vshader_desc.InputParameters,
                 vshader_byte_code,
@@ -439,7 +512,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
             hr = ID3D11Device_CreateVertexShader(
-                win32_render->device,
+                device,
                 vshader_byte_code,
                 vshader_byte_code_size,
                 NULL,
@@ -447,7 +520,7 @@ void platform_win32_init_render(struct PlatformWin32Render* mem)
             ASSERT(SUCCEEDED(hr), "d3d11 error.");
 
             hr = ID3D11Device_CreatePixelShader(
-                win32_render->device,
+                device,
                 pshader_byte_code,
                 pshader_byte_code_size,
                 NULL,
@@ -584,20 +657,22 @@ void platform_win32_render(struct Engine* engine)
 
     ID3D11DeviceContext* const device_context = win32_render->device_context;
 
-    D3D11_VIEWPORT viewport =
     {
-        .TopLeftX = 0.0f,
-        .TopLeftY = 0.0f,
-        .Width = (f32)win32_core->client_width,
-        .Height = (f32)win32_core->client_height,
-        .MinDepth = 0.0f,
-        .MaxDepth = 1.0f,
-    };
-    ID3D11DeviceContext_RSSetViewports(device_context, 1, &viewport);
+        D3D11_VIEWPORT viewport =
+        {
+            .TopLeftX = 0.0f,
+            .TopLeftY = 0.0f,
+            .Width = (f32)win32_core->client_width,
+            .Height = (f32)win32_core->client_height,
+            .MinDepth = 0.0f,
+            .MaxDepth = 1.0f,
+        };
+        ID3D11DeviceContext_RSSetViewports(device_context, 1, &viewport);
+    }
 
     ID3D11DeviceContext_OMSetDepthStencilState(device_context, win32_render->depth_state, 0);
 
-    ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->fsq_render_target_view, win32_render->depth_stencil_view);
+    ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->hdr_fb_render_target_view, win32_render->depth_stencil_view);
 
     m4x4 cam_proj_m4x4;
     {
@@ -660,7 +735,7 @@ void platform_win32_render(struct Engine* engine)
     }
 
     {
-        v4 color = make_v4(0.05f, 0.05f, 0.05f, 1.0f);
+        v4 color = make_v4(0.15f, 0.15f, 0.15f, 1.0f);
         for(s64 x = -128; x < 128; x++)
         {
             platform_win32_add_world_quad(
@@ -693,20 +768,15 @@ void platform_win32_render(struct Engine* engine)
 
     for(u64 i = 0; i < next_game_state->num_players; i++)
     {
-        // v4 color =
-        //     next_game_state->player_team_id[i] == 0
-        //     ? make_v4(0.0f, 5.8f, 7.0f, 1.0f)
-        //     : make_v4(6.0f, 5.4f, 0.0f, 1.0f);
-
-        v4 color =
+        f32 brightness = 5.0f;
+        v3 color =
             next_game_state->player_team_id[i] == 0
-            ? make_v4(0.4f, 1.5f, 2.0f, 1.0f)
-            : make_v4(2.0f, 0.2f, 0.2f, 1.0f);
-
+            ? scale_v3(make_v3(0.4f, 1.5f, 2.0f), brightness)
+            : scale_v3(make_v3(2.0f, 0.2f, 0.2f), brightness);
 
         color =
             next_game_state->player_health[i] == 0
-            ? scale_v4(color, 0.025f)
+            ? scale_v3(color, 0.025f)
             : color;
 
         platform_win32_add_world_circle(
@@ -717,16 +787,17 @@ void platform_win32_render(struct Engine* engine)
             color.x,
             color.y,
             color.z,
-            color.w
+            1.0f
         );
     }
 
     for(u64 i = 0; i < next_game_state->num_bullets; i++)
     {
-        v4 color =
-            next_game_state->bullet_team_id[i] == 0
-            ? make_v4(0.4f, 1.5f, 2.0f, 1.0f)
-            : make_v4(2.0f, 0.2f, 0.2f, 1.0f);
+        f32 brightness = 10.0f;
+        v3 color =
+            next_game_state->player_team_id[i] == 0
+            ? scale_v3(make_v3(0.4f, 1.5f, 2.0f), brightness)
+            : scale_v3(make_v3(2.0f, 0.2f, 0.2f), brightness);
 
         const f32 prev_pos_x = next_game_state->bullet_prev_pos_x[i];
         const f32 prev_pos_y = next_game_state->bullet_prev_pos_y[i];
@@ -743,7 +814,7 @@ void platform_win32_render(struct Engine* engine)
             color.x,
             color.y,
             color.z,
-            color.w
+            1.0f
         );
     }
 
@@ -751,23 +822,73 @@ void platform_win32_render(struct Engine* engine)
         ASSERT(next_game_state->cur_level == 0, "TODO levels");
 
         const struct Level* level = &LEVEL0;
-        const v4 color = make_v4(0.05f, 0.05f, 0.05f, 1.0f);
         for(u64 i = 0; i < level->num_walls; i++)
         {
-            const struct LevelWall* wall = &level->walls[i];
+            const struct LevelWallGeometry* wall = &level->walls[i];
+            
+            v3 bg_color = make_v3(level->wall_color_bg[i][0], level->wall_color_bg[i][1], level->wall_color_bg[i][2]);
+            v3 hl_color = make_v3(level->wall_color_hl[i][0], level->wall_color_hl[i][1], level->wall_color_hl[i][2]);
+
             platform_win32_add_world_quad(
                 (f32)wall->x + (f32)wall->w * 0.5f,
                 (f32)wall->y + (f32)wall->h * 0.5f,
-                0.6f,
+                0.7f,
                 (f32)wall->w,
                 (f32)wall->h,
-                color.x,
-                color.y,
-                color.z,
-                color.w
+                bg_color.x,
+                bg_color.y,
+                bg_color.z,
+                1.0f
+            );
+
+            const f32 T = 0.25f;
+
+            platform_win32_add_world_quad(
+                (f32)wall->x + T * 0.5f,
+                (f32)wall->y + (f32)wall->h * 0.5f,
+                0.6f,
+                T,
+                (f32)wall->h,
+                hl_color.x,
+                hl_color.y,
+                hl_color.z,
+                1.0f
+            );
+            platform_win32_add_world_quad(
+                (f32)wall->x + (f32)wall->w - T * 0.5f,
+                (f32)wall->y + (f32)wall->h * 0.5f,
+                0.6f,
+                T,
+                (f32)wall->h,
+                hl_color.x,
+                hl_color.y,
+                hl_color.z,
+                1.0f
+            );
+
+            platform_win32_add_world_quad(
+                (f32)wall->x + (f32)wall->w * 0.5f,
+                (f32)wall->y + T * 0.5f,
+                0.6f,
+                (f32)wall->w,
+                T,
+                hl_color.x,
+                hl_color.y,
+                hl_color.z,
+                1.0f
+            );
+            platform_win32_add_world_quad(
+                (f32)wall->x + (f32)wall->w * 0.5f,
+                (f32)wall->y + (f32)wall->h - T * 0.5f,
+                0.6f,
+                (f32)wall->w,
+                T,
+                hl_color.x,
+                hl_color.y,
+                hl_color.z,
+                1.0f
             );
         }
-        
     }
 
     {
@@ -1054,49 +1175,142 @@ void platform_win32_render(struct Engine* engine)
 
         win32_render->world_lines.num = 0;
     }
+    
+    for(u64 i_bloom = 0; i_bloom < 4; i_bloom++)
+    {
+        ID3D11Buffer* vertex_buffer = win32_render->fsq_vertex_buffer;
+        const enum ShaderType shader_type = SHADER_fsq_downsample;
+        ID3D11InputLayout* shader_input_layout = win32_render->shader_input_layouts[shader_type];
+
+        D3D11_VIEWPORT viewport =
+        {
+            .TopLeftX = 0.0f,
+            .TopLeftY = 0.0f,
+            .Width = (f32)(win32_core->client_width >> (i_bloom + 1)),
+            .Height = (f32)(win32_core->client_height >> (i_bloom + 1)),
+            .MinDepth = 0.0f,
+            .MaxDepth = 1.0f,
+        };
+        ID3D11DeviceContext_RSSetViewports(device_context, 1, &viewport);
+
+        const float blend_factor[4] = { };
+        ID3D11DeviceContext_OMSetBlendState(
+            device_context,
+            NULL,
+            blend_factor,
+            0xFFFFFFFF);
+
+        ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->bloom_render_target_view[i_bloom], NULL);
+        ID3D11DeviceContext_RSSetState(device_context, win32_render->rasterizer_states[RASTERIZER_STATE_SOLID]);
+        ID3D11DeviceContext_VSSetShader(device_context, win32_render->vertex_shaders[shader_type], NULL, 0);
+        ID3D11DeviceContext_PSSetShader(device_context, win32_render->pixel_shaders[shader_type], NULL, 0);
+        ID3D11ShaderResourceView* shader_views[] = {
+            i_bloom == 0 ? win32_render->hdr_fb_texture_view : win32_render->bloom_texture_view[i_bloom - 1],
+        };
+        ID3D11DeviceContext_PSSetShaderResources(device_context, 0, 1, shader_views);
+        ID3D11SamplerState* samplers[] = { win32_render->fsq_sampler };
+        ID3D11DeviceContext_PSSetSamplers(device_context, 0, 1, samplers);
+        ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+        ID3D11DeviceContext_IASetInputLayout(device_context, shader_input_layout);
+        ID3D11Buffer* vertex_buffers[] = { vertex_buffer };
+        const u32 strides[] = { sizeof(struct FsqVertex) };
+        const u32 offsets[] = { 0 };
+        ID3D11DeviceContext_IASetVertexBuffers(
+            device_context,
+            0,
+            ARRAY_COUNT(vertex_buffers),
+            vertex_buffers,
+            strides,
+            offsets
+        );
+        ID3D11DeviceContext_Draw(device_context, 4, 0);
+    }
+
+    for(s64 i_bloom = 2; i_bloom >= 0; i_bloom--)
+    {
+        ID3D11Buffer* vertex_buffer = win32_render->fsq_vertex_buffer;
+        const enum ShaderType shader_type = SHADER_fsq_upsample;
+        ID3D11InputLayout* shader_input_layout = win32_render->shader_input_layouts[shader_type];
+
+        D3D11_VIEWPORT viewport =
+        {
+            .TopLeftX = 0.0f,
+            .TopLeftY = 0.0f,
+            .Width = (f32)(win32_core->client_width >> (i_bloom + 1)),
+            .Height = (f32)(win32_core->client_height >> (i_bloom + 1)),
+            .MinDepth = 0.0f,
+            .MaxDepth = 1.0f,
+        };
+        ID3D11DeviceContext_RSSetViewports(device_context, 1, &viewport);
+
+        const float blend_factor[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+        ID3D11DeviceContext_OMSetBlendState(
+            device_context,
+            win32_render->bloom_blend_state[i_bloom],
+            blend_factor,
+            0xFFFFFFFF);
+
+        ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->bloom_render_target_view[i_bloom], NULL);
+        ID3D11DeviceContext_RSSetState(device_context, win32_render->rasterizer_states[RASTERIZER_STATE_SOLID]);
+        ID3D11DeviceContext_VSSetShader(device_context, win32_render->vertex_shaders[shader_type], NULL, 0);
+        ID3D11DeviceContext_PSSetShader(device_context, win32_render->pixel_shaders[shader_type], NULL, 0);
+        ID3D11ShaderResourceView* shader_views[] = {
+            win32_render->bloom_texture_view[i_bloom + 1],
+        };
+        ID3D11DeviceContext_PSSetShaderResources(device_context, 0, 1, shader_views);
+        ID3D11SamplerState* samplers[] = { win32_render->fsq_sampler };
+        ID3D11DeviceContext_PSSetSamplers(device_context, 0, 1, samplers);
+        ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+        ID3D11DeviceContext_IASetInputLayout(device_context, shader_input_layout);
+        ID3D11Buffer* vertex_buffers[] = { vertex_buffer };
+        const u32 strides[] = { sizeof(struct FsqVertex) };
+        const u32 offsets[] = { 0 };
+        ID3D11DeviceContext_IASetVertexBuffers(
+            device_context,
+            0,
+            ARRAY_COUNT(vertex_buffers),
+            vertex_buffers,
+            strides,
+            offsets
+        );
+        ID3D11DeviceContext_Draw(device_context, 4, 0);
+    }
 
     {
         ID3D11Buffer* vertex_buffer = win32_render->fsq_vertex_buffer;
         const enum ShaderType shader_type = SHADER_fsq;
         ID3D11InputLayout* shader_input_layout = win32_render->shader_input_layouts[shader_type];
 
-        ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->render_target_view, win32_render->depth_stencil_view);
+        D3D11_VIEWPORT viewport =
+        {
+            .TopLeftX = 0.0f,
+            .TopLeftY = 0.0f,
+            .Width = (f32)win32_core->client_width,
+            .Height = (f32)win32_core->client_height,
+            .MinDepth = 0.0f,
+            .MaxDepth = 1.0f,
+        };
+        ID3D11DeviceContext_RSSetViewports(device_context, 1, &viewport);
 
+        const float blend_factor[4] = { };
+        ID3D11DeviceContext_OMSetBlendState(device_context, NULL, blend_factor, 0xFFFFFFFF);
+
+        ID3D11DeviceContext_OMSetRenderTargets(device_context, 1, &win32_render->render_target_view, win32_render->depth_stencil_view);
         ID3D11DeviceContext_RSSetState(device_context, win32_render->rasterizer_states[RASTERIZER_STATE_SOLID]);
-     
         ID3D11DeviceContext_VSSetShader(device_context, win32_render->vertex_shaders[shader_type], NULL, 0);
         ID3D11DeviceContext_PSSetShader(device_context, win32_render->pixel_shaders[shader_type], NULL, 0);
-
         ID3D11ShaderResourceView* shader_views[] = {
-            win32_render->fb_texture_view,
+            win32_render->hdr_fb_texture_view,
+            win32_render->bloom_texture_view[0],
         };
-        ID3D11DeviceContext_PSSetShaderResources(
-            device_context,
-            0,
-            1,
-            shader_views
-        );
-        ID3D11SamplerState* samplers[] = {
-            win32_render->fsq_sampler,
-        };
-        ID3D11DeviceContext_PSSetSamplers(
-            device_context,
-            0,
-            1,
-            samplers
-        );
-     
+        ID3D11DeviceContext_PSSetShaderResources(device_context, 0, ARRAY_COUNT(shader_views), shader_views);
+        ID3D11SamplerState* samplers[] = { win32_render->fsq_sampler };
+        ID3D11DeviceContext_PSSetSamplers(device_context, 0, 1, samplers);
         ID3D11DeviceContext_IASetPrimitiveTopology(device_context, D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
         ID3D11DeviceContext_IASetInputLayout(device_context, shader_input_layout);
-        ID3D11Buffer* vertex_buffers[] = {
-            vertex_buffer,
-        };
-        const u32 strides[] = {
-            sizeof(struct FsqVertex),
-        };
-        const u32 offsets[] = {
-            0,
-        };
+        ID3D11Buffer* vertex_buffers[] = { vertex_buffer };
+        const u32 strides[] = { sizeof(struct FsqVertex) };
+        const u32 offsets[] = { 0 };
         ID3D11DeviceContext_IASetVertexBuffers(
             device_context,
             0,
@@ -1113,6 +1327,7 @@ void platform_win32_swap_and_clear_buffer(f32 r, f32 g, f32 b)
 {
     struct PlatformWin32Render* win32_render = platform_win32_get_render();
 
+    ID3D11Device* const device = win32_render->device;
     ID3D11DeviceContext* const device_context = win32_render->device_context;
 
     HRESULT hr;
@@ -1121,7 +1336,7 @@ void platform_win32_swap_and_clear_buffer(f32 r, f32 g, f32 b)
     if(FAILED(hr))
     {
         ASSERT(SUCCEEDED(hr) || hr == DXGI_STATUS_OCCLUDED, "d3d11 error.");
-        HRESULT reason = ID3D11Device_GetDeviceRemovedReason(win32_render->device);
+        HRESULT reason = ID3D11Device_GetDeviceRemovedReason(device);
         ASSERT(reason = S_OK, "fail");
     }
 
@@ -1131,7 +1346,7 @@ void platform_win32_swap_and_clear_buffer(f32 r, f32 g, f32 b)
                                               win32_render->render_target_view,
                                               black);
     ID3D11DeviceContext_ClearRenderTargetView(device_context,
-                                              win32_render->fsq_render_target_view,
+                                              win32_render->hdr_fb_render_target_view,
                                               clear_color);
     ID3D11DeviceContext_ClearDepthStencilView(device_context,
                                               win32_render->depth_stencil_view,

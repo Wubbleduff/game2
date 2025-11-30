@@ -90,6 +90,7 @@ struct PlatformWin32Render
     ID3D11RenderTargetView* render_target_view;
     ID3D11DepthStencilView* depth_stencil_view;
 
+
     ID3D11InputLayout* shader_input_layouts[NUM_SHADERS];
     ID3D11VertexShader* vertex_shaders[NUM_SHADERS];
     ID3D11PixelShader* pixel_shaders[NUM_SHADERS];
@@ -102,10 +103,14 @@ struct PlatformWin32Render
     ID3D11ShaderResourceView* instance_buffer_srv;
 
     ID3D11Buffer* fsq_vertex_buffer;
-    ID3D11InputLayout* fsq_layout;
-    ID3D11ShaderResourceView* fb_texture_view;
     ID3D11SamplerState* fsq_sampler;
-    ID3D11RenderTargetView* fsq_render_target_view;
+
+    ID3D11RenderTargetView* hdr_fb_render_target_view;
+    ID3D11ShaderResourceView* hdr_fb_texture_view;
+
+    ID3D11RenderTargetView* bloom_render_target_view[4];
+    ID3D11ShaderResourceView* bloom_texture_view[4];
+    ID3D11BlendState* bloom_blend_state[4];
 
     struct RenderWorldQuadData world_quads;
     struct RenderWorldCircleData world_circles;

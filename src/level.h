@@ -2,7 +2,7 @@
 #pragma once
 
 #define MAX_LEVEL_WALLS 64
-struct LevelWall
+struct LevelWallGeometry
 {
     // Origin is the bottom left.
     s32 x;
@@ -16,5 +16,7 @@ struct Level
     u32 height;
 
     u32 num_walls;
-    struct LevelWall walls[MAX_LEVEL_WALLS];
+    struct LevelWallGeometry walls[MAX_LEVEL_WALLS];
+    f32 wall_color_bg[MAX_LEVEL_WALLS][3];
+    f32 wall_color_hl[MAX_LEVEL_WALLS][3];
 };
