@@ -97,6 +97,9 @@ static void init_game_state(struct GameState* game_state)
             num++;
         }
         game_state->num_players = num;
+
+        game_state->player_id_has_flag[0] = u32_MAX;
+        game_state->player_id_has_flag[1] = u32_MAX;
     }
 
     game_state->num_bullets = 0;
@@ -461,7 +464,7 @@ void tick_engine(struct Engine* engine)
         }
     }
 
-#if 0
+#if 0   
     {
         struct PathFind* path_find = &engine->path_find;
         const s32 start_x = clamp_s32((s32)round_neg_inf(next_game_state->player_pos_x[0]), -64, 63);

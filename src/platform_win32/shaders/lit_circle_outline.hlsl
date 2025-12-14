@@ -45,7 +45,7 @@ PS_INPUT vs(VS_INPUT input)
 float4 ps(PS_INPUT input) : SV_TARGET
 {
     const float3 high_color = input.color.xyz;
-    const float3 low_color = input.color.xyz * 0.03;
+    const float3 low_color = input.color.xyz * 0.02;
     float l = length(input.model_pos);
     float e_min = 0.4;
     float inner = 0.425;

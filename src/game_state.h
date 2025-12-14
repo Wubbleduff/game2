@@ -24,6 +24,8 @@ struct GameState
     u8 player_type[MAX_PLAYERS];
     u8 player_team_id[MAX_PLAYERS];
 
+    u32 player_id_has_flag[2];
+
     u32 num_bullets;
     f32 bullet_vel_x[MAX_BULLETS];
     f32 bullet_vel_y[MAX_BULLETS];

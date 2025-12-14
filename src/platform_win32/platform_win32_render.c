@@ -889,6 +889,21 @@ void platform_win32_render(struct Engine* engine)
                 1.0f
             );
         }
+
+        for(u64 i = 0; i < level->num_flags; i++)
+        {
+            v3 color = make_v3(10.0f, 8.0f, 0.5f);
+            platform_win32_add_world_circle(
+                level->flag_pos_x[i],
+                level->flag_pos_y[i],
+                0.75f,
+                0.75f,
+                color.x,
+                color.y,
+                color.z,
+                1.0f
+            );
+        }
     }
 
     {

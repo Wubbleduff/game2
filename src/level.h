@@ -19,4 +19,8 @@ struct Level
     struct LevelWallGeometry walls[MAX_LEVEL_WALLS];
     f32 wall_color_bg[MAX_LEVEL_WALLS][3];
     f32 wall_color_hl[MAX_LEVEL_WALLS][3];
+
+    u32 num_flags;
+    f32 flag_pos_x[2];
+    f32 flag_pos_y[2];
 };
