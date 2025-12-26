@@ -98,8 +98,8 @@ static void init_game_state(struct GameState* game_state)
         }
         game_state->num_players = num;
 
-        game_state->player_id_has_flag[0] = u32_MAX;
-        game_state->player_id_has_flag[1] = u32_MAX;
+        game_state->maybe_flag_held_by_player_id[0] = u32_MAX;
+        game_state->maybe_flag_held_by_player_id[1] = u32_MAX;
     }
 
     game_state->num_bullets = 0;
@@ -141,7 +141,7 @@ static void update_physics(
     {
         // Note: The order with which we process kinematics and collisions is important.
 
-        // 1. Integrate forces into player velocity.
+        // Integrate forces into player velocity.
         for(u32 player_id = 0; player_id < num_players; player_id++)
         {
             const struct PlayerInput* player_input = &game_input->player_input[player_id];
@@ -163,7 +163,7 @@ static void update_physics(
             player_vel_y[player_id] = player_vel.y;
         }
         
-        // 2. Resolve bullet-wall collisions.
+        // Resolve bullet-wall collisions.
         for(u32 i_bullet = 0; i_bullet < num_bullets; i_bullet++)
         {
             for(u32 i_wall = 0; i_wall < level->num_walls; i_wall++)
@@ -195,7 +195,7 @@ static void update_physics(
             }
         }
 
-        // 3. Resolve bullet-player collisions.
+        // Resolve bullet-player collisions.
         for(u32 i_bullet = 0; i_bullet < num_bullets; i_bullet++)
         {
             for(u32 player_id = 0; player_id < num_players; player_id++)
@@ -220,7 +220,53 @@ static void update_physics(
             }
         }
 
-        // 4. Resolve player-player collisions.
+        // Resolve player-flag collisions
+        {
+            u8 player_has_flag[MAX_PLAYERS] = {};
+            FILL_ARRAY(player_has_flag, u8_MAX);
+            for(u32 i_flag = 0; i_flag < level->num_flags; i_flag++)
+            {
+                const u32 maybe_player_id = game_state->maybe_flag_held_by_player_id[i_flag];
+                if(maybe_player_id != u32_MAX)
+                {
+                    player_has_flag[maybe_player_id] = (u8)i_flag;
+                }
+            }
+            
+            for(u32 i_flag = 0; i_flag < level->num_flags; i_flag++)
+            {
+                const v2 flag_pos = make_v2(level->flag_pos_x[i_flag], level->flag_pos_y[i_flag]);
+                const f32 flag_r = level->flag_radius[i_flag];
+
+                for(u32 player_id = 0; player_id < num_players; player_id++)
+                {
+                    const v2 player_pos = make_v2(player_pos_x[player_id], player_pos_y[player_id]);
+                    const f32 player_r = player_radius;
+
+                    if(length_sq_v2(sub_v2(flag_pos, player_pos)) < sq_f32(player_r + flag_r))
+                    {
+                        if(game_state->maybe_flag_held_by_player_id[i_flag] == u32_MAX)
+                        {
+                            // Flag is at base.
+
+                            if(player_team_id[player_id] != i_flag)
+                            {
+                                // Player take enemy flag.
+                                game_state->maybe_flag_held_by_player_id[i_flag] = player_id;
+                            }
+                            else if(player_has_flag[player_id] != u8_MAX)
+                            {
+                                // Player capture flag.
+                                game_state->maybe_flag_held_by_player_id[player_has_flag[player_id]] = u32_MAX;
+                                player_has_flag[player_id] = 0;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Resolve player-player collisions.
         for(u32 a_id = 0; a_id < num_players; a_id++)
         {
             const v2 a_pos = make_v2(player_pos_x[a_id], player_pos_y[a_id]);
@@ -255,8 +301,8 @@ static void update_physics(
             player_vel_y[a_id] = a_vel.y;
         }
 
-        // 5. Resolve player-wall collisions.
-        //    Do this after all player-player collisions so it's harder for players to move into walls.
+        // Resolve player-wall collisions.
+        // Do this after all player-player collisions so it's harder for players to move into walls.
         for(u32 player_id = 0; player_id < num_players; player_id++)
         {
             const v2 player_pos = make_v2(player_pos_x[player_id], player_pos_y[player_id]);
@@ -288,7 +334,7 @@ static void update_physics(
             player_vel_y[player_id] = player_vel.y;
         }
 
-        // 6. Integrate velocity into position.
+        // Integrate velocity into position.
         for(u32 player_id = 0; player_id < num_players; player_id++)
         {
             player_pos_x[player_id] += player_vel_x[player_id] * sub_dt;

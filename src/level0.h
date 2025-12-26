@@ -92,4 +92,8 @@ static const struct Level LEVEL0 =
         0.0f,
         0.0f,
     },
+    .flag_radius = {
+        0.75f,
+        0.75f,
+    },
 };

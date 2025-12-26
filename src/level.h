@@ -23,4 +23,5 @@ struct Level
     u32 num_flags;
     f32 flag_pos_x[2];
     f32 flag_pos_y[2];
+    f32 flag_radius[2];
 };

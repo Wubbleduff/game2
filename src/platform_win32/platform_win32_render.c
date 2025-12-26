@@ -9,6 +9,7 @@
 
 #include "platform_win32/platform_win32_render.h"
 #include "platform_win32/platform_win32_core.h"
+#include "platform_win32/platform_win32_input.h"
 
 #include <d3d11shader.h>
 #include <d3dcompiler.h>
@@ -766,22 +767,32 @@ void platform_win32_render(struct Engine* engine)
         }
     }
 
-    for(u64 i = 0; i < next_game_state->num_players; i++)
+    ASSERT(next_game_state->cur_level == 0, "TODO levels");
+    const struct Level* level = &LEVEL0;
+
+    for(u64 player_id = 0; player_id < next_game_state->num_players; player_id++)
     {
         f32 brightness = 5.0f;
         v3 color =
-            next_game_state->player_team_id[i] == 0
+            next_game_state->player_team_id[player_id] == 0
             ? scale_v3(make_v3(0.4f, 1.5f, 2.0f), brightness)
             : scale_v3(make_v3(2.0f, 0.2f, 0.2f), brightness);
 
         color =
-            next_game_state->player_health[i] == 0
+            next_game_state->player_health[player_id] == 0
             ? scale_v3(color, 0.025f)
             : color;
 
+        u8 has_flag = 0;
+        for(u64 i_flag = 0; i_flag < level->num_flags; i_flag++)
+        {
+            has_flag |= next_game_state->maybe_flag_held_by_player_id[i_flag] == player_id;
+        }
+        color = has_flag ? add_v3(color, make_v3(10.0f, 10.0f, 0.0f)) : color;
+
         platform_win32_add_world_circle(
-            next_game_state->player_pos_x[i],
-            next_game_state->player_pos_y[i],
+            next_game_state->player_pos_x[player_id],
+            next_game_state->player_pos_y[player_id],
             0.5f,
             0.5f,
             color.x,
@@ -810,7 +821,7 @@ void platform_win32_render(struct Engine* engine)
             next_pos_x,
             next_pos_y,
             0.5f,
-            0.2f,
+            0.1f,
             color.x,
             color.y,
             color.z,
@@ -819,9 +830,6 @@ void platform_win32_render(struct Engine* engine)
     }
 
     {
-        ASSERT(next_game_state->cur_level == 0, "TODO levels");
-
-        const struct Level* level = &LEVEL0;
         for(u64 i = 0; i < level->num_walls; i++)
         {
             const struct LevelWallGeometry* wall = &level->walls[i];
@@ -893,11 +901,17 @@ void platform_win32_render(struct Engine* engine)
         for(u64 i = 0; i < level->num_flags; i++)
         {
             v3 color = make_v3(10.0f, 8.0f, 0.5f);
+
+            color =
+                next_game_state->maybe_flag_held_by_player_id[i] != u32_MAX
+                ? scale_v3(color, 0.025f)
+                : color;
+
             platform_win32_add_world_circle(
                 level->flag_pos_x[i],
                 level->flag_pos_y[i],
                 0.75f,
-                0.75f,
+                level->flag_radius[i],
                 color.x,
                 color.y,
                 color.z,
@@ -1134,8 +1148,8 @@ void platform_win32_render(struct Engine* engine)
                 const f32 I_len = length_v2(I);
                 I = normalize_or_v2(I, zero_v2());
                 v2 J = make_v2(-I.y, I.x);
-                J = scale_v2(J, width * 0.5f);
-                I = scale_v2(I, I_len * 0.5f + width);
+                J = scale_v2(J, width);
+                I = scale_v2(I, I_len + width);
 
                 mapped_data[i].xform[0][0] =  I.x; mapped_data[i].xform[0][1] =  J.x; mapped_data[i].xform[0][2] = 0.0f; mapped_data[i].xform[0][3] = mid_x;
                 mapped_data[i].xform[1][0] =  I.y; mapped_data[i].xform[1][1] =  J.y; mapped_data[i].xform[1][2] = 0.0f; mapped_data[i].xform[1][3] = mid_y;
